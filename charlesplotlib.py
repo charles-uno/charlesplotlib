@@ -35,9 +35,20 @@ from sys import argv
 from time import localtime as lt
 from numpy.ma import masked_where
 
+
+import cubehelix
+
+
 # #####################################################################
 # #################################################### Helper Functions
 # #####################################################################
+
+# Format a chunk of text to be non-math LaTeX. 
+def notex(x):
+  if '\n' in x:
+    return ' $ \n $ '.join( notex(y) for y in x.split('\n') )
+  else:
+    return '\\operatorname{' + x.replace(' ', '\\;') + '}'
 
 # Timestamp to label output, formatted yyyymmdd_hhmmss. 
 def now():
@@ -45,8 +56,13 @@ def now():
            znt(lt().tm_mday, 2) + '_' + znt(lt().tm_hour, 2) +
            znt(lt().tm_min, 2) + znt(lt().tm_sec, 2) )
 
-
-
+# Take a string and split math and non-math on dollar signs. 
+def tex(x):
+  nomath = x.split('$')[::2]
+  ret = [None]*( len( x.split('$') ) )
+  ret[1::2] = x.split('$')[1::2]
+  ret[::2] = [ notex(n) for n in nomath ]
+  return ' $ ' + ''.join(ret) + ' $ '
 
 # Pads an integer with zeros. Floats are truncated. 
 def znt(x, width=0):
@@ -56,8 +72,51 @@ def znt(x, width=0):
 # ################################################### Global Parameters
 # #####################################################################
 
+
+import matplotlib.colors as mcolors
+
+
+
+#_cmap_ = plt.get_cmap('cubehelix')
+
+cmap1 = cubehelix.cmap(start=0, rot=-0.33)
+cmap2 = cubehelix.cmap(start=0.5, rot=0.33, reverse=True)
+
+colors1 = cmap1(np.linspace(0., 1, 1024))
+colors2 = cmap2(np.linspace(0, 1, 1024))
+
+colors3 = np.vstack( (colors1, colors2) )
+
+# With no rotations...
+# start=0 -- blue
+# start=1 -- red
+# start=2 -- green
+
+# With half a rotation... note that reverse flips the whole color bar
+
+# start=0, rotation=+0.3 -- dark blue, light purple
+# start=0, rotation=-0.3 -- dark blue, light teal
+
+# start=1, rotation=+0.3 -- dark red (?), light yellow
+# start=1, rotation=-0.3 -- dark red, light purple
+
+# start=2, rotation=+0.3 -- dark green, light teal
+# start=2, rotation=-0.3 -- dark green, light yellow
+
+# prominent red, with light toward yellow and dark toward purple: start=0.5, rot=+0.33
+
+
+cubehelix_linear = cubehelix.cmap(start=0., rot=0.66, reverse=True)
+
+cubehelix_diverging = mcolors.LinearSegmentedColormap.from_list('cubehelix_diverging', colors3)
+
+_cmap_ = cubehelix_linear
+
+
+
 # For talks, all font sizes will be scaled up. 
 _fontscale_ = 1.
+_fontsize_ = 10
 
 # Format for image output: PDF, PNG, SVG, etc. 
 _savefmt_ = 'pdf'
@@ -88,7 +147,7 @@ class plotwindow:
   # -------------------------------------------------------------------
 
   def __init__(self, nrows=1, ncols=1, slope=0.8, _cells_=None, landscape=False):
-    global _fontscale_
+    global _fontscale_, _fontsize_
 
     # TODO: All we should be doing at this point is creating an array
     # of cells. Figuring out how many cells to plot, the proportions of
@@ -105,10 +164,10 @@ class plotwindow:
     # LaTeX dissertation template). For a talk, it's taken to be 10".
     inchwidth = 10. if landscape else 5.75
     # For a wider window, use a larger font size. 
-    fontsize = 15 if landscape else 10
+    _fontsize_ = ( 15 if landscape else 10 )*_fontscale_
     # Set the text to use LaTeX. 
     rc( 'font', **{ 'family':'sans-serif', 'sans-serif':['Helvetica'], 
-                    'size':str( fontsize*_fontscale_ ) } )
+                    'size':str( _fontsize_ ) } )
     rc('text', usetex=True)
     rc('text.latex', preamble='\usepackage{amsmath}, ' +
                               '\usepackage{amssymb}, ' + 
@@ -116,16 +175,16 @@ class plotwindow:
     # The window will be broken up into some number of equally-sized
     # tiles. That's the unit we use to specify the relative sizes of
     # plot elements. 
-    titleheight = int( 15*_fontscale_ )
-    headheight = 10 if ncols > 1 else 1
+    titleheight = int( 20*_fontscale_ )
+    headheight = int( 10*_fontscale_ if ncols > 1 else 1 )
     footheight = 10
     sidewidth = 10
     cellpad = 5
-    labelpad = 15
+    labelpad = int( 20*_fontscale_ )
     cellwidth = (210/ncols) - cellpad
     cellheight = int( cellwidth*slope )
     # Figure out the total number of tiles we need. 
-    tilewidth = 210 + 2*sidewidth + 4*labelpad
+    tilewidth = 210 - cellpad + 2*sidewidth + 4*labelpad
     tileheight = ( titleheight + headheight + nrows*cellheight +
                    (nrows-1)*cellpad + 2*labelpad + footheight )
     # Set the window size to ensure that the tiles are square. 
@@ -173,13 +232,12 @@ class plotwindow:
     left = 2*labelpad + sidewidth
     self.fax = plt.subplot( tiles[top:bot, left:-left] )
 
-#    self.tax.axis('off')
-#    self.shax.axis('off')
-#    self.cax.axis('off')
-#    self.uax.axis('off')
+    # Hide the axes that we just use for placing text. 
+    self.tax.axis('off')
+    self.rax.axis('off')
 #    self.fax.axis('off')
-#    [ x.axis('off') for x in self.sax ]
-#    [ x.axis('off') for x in self.hax ]
+    [ l.axis('off') for l in self.laxes ]
+    [ h.axis('off') for h in self.haxes ]
 
     return
 
@@ -227,8 +285,64 @@ class plotwindow:
     return [ c.bar(*args, **kargs) for c in self.cells.flatten() ]
 
   # -------------------------------------------------------------------
+  # -------------------------------------------------- Style Parameters
+  # -------------------------------------------------------------------
+
+  def style(self, **kargs):
+    global _fontsize_
+
+    for key, val in kargs.items():
+
+      targs = { 'x':0.5, 'y':0.5, 'horizontalalignment':'center', 
+                'verticalalignment':'center'}
+
+      if key=='clabs':
+        targs['fontsize'] = str( int( _fontsize_ ) )
+        [ l.text(s=tex(v), **targs) for v, l in zip(val, self.laxes) ]
+
+      elif key=='rlabs':
+        targs['fontsize'] = str( int( _fontsize_ ) )
+        [ h.text(s=tex(v), **targs) for v, h in zip(val, self.haxes) ]
+
+      elif key=='title':
+        targs['fontsize'] = str( 1.2*_fontsize_ )
+        self.tax.text(s=tex(val), **targs)
+
+
+      # Anything else gets forwarded to each cell. 
+      else:
+        [ c.style( **{key:val} ) for c in self.cells.flatten() ]
+
+    return
+
+
+
+
+
+  # -------------------------------------------------------------------
   # --------------------------------------------- Find Extrema of Cells
   # -------------------------------------------------------------------
+
+
+  def fmt(self, z):
+    return '$' + str( int(100*z) ) + '\\%$'
+
+
+  # This is a short term solution. 
+
+  def colorbar(self):
+
+    global _cmap_
+
+    ColorbarBase( self.fax, 
+#                  boundaries=colorParams['levels'],
+#                  ticks=colorParams['ticks'], 
+#                  norm=colorParams['norm'],
+                  orientation='horizontal',
+                  cmap=_cmap_ )
+#      cax.set_yticklabels( [ self.fmt(t) for t in colorParams['ticks'] ] )
+
+    return
 
 
 
@@ -248,6 +362,19 @@ class plotwindow:
   def draw(self, filename=None):
     global _savefmt_, _savepath_
 
+
+
+
+
+    # Kludged this together so as can do sanity checks. 
+
+    self.colorbar()
+
+
+    # Only the leftmost cells get y axis labels and tick labels. 
+    self[:, 1:].style(yticklabels=(), ylabel='')
+    # Only the bottom cells get x axis labela and tick labels. 
+    self[:-1, :].style(xticklabels=(), xlabel='')
 
     [ c.draw() for c in self.cells.flatten() ]
 
@@ -326,21 +453,44 @@ class plotcell:
     return
 
   # -------------------------------------------------------------------
+  # -------------------------------------------------- Style Parameters
+  # -------------------------------------------------------------------
+
+  def style(self, **kargs):
+
+    for key, val in kargs.items():
+
+      if key=='xlabel':
+        self.ax.set_xlabel('' if not val else '$' + val + '$')
+      elif key=='xticklabels':
+        self.ax.set_xticklabels(val)
+      elif key=='ylabel':
+        self.ax.set_ylabel('' if not val else '$' + val + '$')
+      elif key=='yticklabels':
+        self.ax.set_yticklabels(val)
+      else:
+        print 'WARNING -- unrecognized style parameter ' + key
+
+    return
+
+  # -------------------------------------------------------------------
   # --------------------------------------------------------- Draw Data
   # -------------------------------------------------------------------
 
   def draw(self):
+
+    global _cmap_
 
     # TODO: Handle limits, ticks, tick labels for x, y, and z. 
 
     # Handle contours first, if any. 
     if self.contours is not None:
       for x, y, z, args, kargs in self.contours:
-        self.ax.contourf(x, y, z, *args, **kargs)
+        self.ax.contourf(x, y, z, cmap=_cmap_, *args, **kargs)
     # Handle the color mesh, if any. 
     if self.meshes is not None:
       for x, y, z, args, kargs in self.meshes:
-        self.ax.pcolormesh(x, y, z, *args, **kargs)
+        self.ax.pcolormesh(x, y, z, cmap=_cmap_, *args, **kargs)
     # Draw the bar plots, if any. 
     if self.bars is not None:
       for x, y, args, kargs in self.bars:
@@ -372,7 +522,7 @@ def notex(x):
   else:
     return '\\operatorname{' + x.replace(' ', '\\;') + '}'
 
-def tex(x):
+def tex_old(x):
   # Format frequencies nicely. 
   if isinstance(x, float):
     return notex(format(1e3*x, '.0f') + 'mHz ')
@@ -474,136 +624,6 @@ class plotWindow:
 
 
   # ---------------------------------------------------------------------------
-  # --------------------------------- Initialize Plot Window and Space Out Axes
-  # ---------------------------------------------------------------------------
-
-  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, footlabel=False, landscape=False, fontfactor=1., **kargs):
-    # If initialized with an array of cells, this isn't a real Plot Window... 
-    # it's a temporary object that allows the access of a slice of cells. 
-    if cells is not None:
-      self.cells = cells
-      return
-    # If we're making a real Plot Window, make sure there's nothing lingering
-    # from a previous plot. 
-    plt.close('all')
-    # Set the font to match LaTeX. 
-
-    self.fontfactor = fontfactor
-
-    if not landscape:
-      self.landscape = False
-      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
-                    'size':str(9*self.fontfactor)})
-    else:
-      self.landscape = True
-      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
-                    'size':str(12*self.fontfactor)})
-    rc('text', usetex=True)
-    rc('text.latex', preamble='\usepackage{amsmath}, \usepackage{amssymb}, ' + 
-                              '\usepackage{color}')
-    # The window width in inches is fixed to match the size of the page. 
-    windowWidth = 5.75 if not self.landscape else 11.
-    # A negative number of columns means that there should be just one column,
-    # but extra "wide." For example, if asked for -3 columns, row heights are
-    # set up to accommodate 3 columns, then only one cell is put on each row. 
-    ancols, oncols = abs(ncols), max(1, ncols)
-    # The window will be broken up into some number of equally-sized tiles.
-    # That's the unit we use to specify the relative sizes of plot elements. 
-    sideMargin = 40
-    cellPadding = 5
-    titleMargin = int(15*self.fontfactor)
-    headMargin = 1 if ncols<2 and joinlabel is None else 10
-    unitMargin = 10
-    footMargin = int( ( 30 if footlabel is True else 20 )*self.fontfactor )
-    # The size of each subplot depends on how many columns there are. The total
-    # width of the subplot area (including padding) will always be the same.
-    # No more than four columns are allowed. 
-    cellWidth = {1:175, 2:80, 3:55, 4:40}[ancols]
-    # Cells are proportioned to show a dipole plot, which is 10RE wide and 8RE
-    # tall, in proper proportion. 
-    cellHeight = cellWidth if square is True else 4*cellWidth/5 
-    # Tally up how many tiles we need. 
-    tileWidth = ancols*cellWidth + (ancols-1)*cellPadding + 2*sideMargin
-    tileHeight = ( nrows*cellHeight + (nrows-1)*cellPadding + titleMargin +
-                   headMargin + footMargin )
-    # Set the window size in proportion with the number of tiles we need. This
-    # ensures that that tiles are square. 
-    windowHeight = tileHeight*windowWidth/tileWidth
-    # Create the window. Tell it that we want the subplot area to go all the
-    # way to the edges, then break that area up into tiles. 
-    fig = plt.figure(figsize=(windowWidth, windowHeight), facecolor='white')
-    fig.canvas.set_window_title('Tuna Plotter')
-    tiles = gridspec.GridSpec(tileHeight, tileWidth)
-    plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
-    # Create a lattice of axes and use it to initialize an array of Plot Cells.
-    self.cells = np.empty( (nrows, oncols), dtype=object)
-    for row in range(nrows):
-      top = titleMargin + headMargin + row*(cellHeight + cellPadding)
-      bot = top + cellHeight
-      if ncols<0:
-        ax = plt.subplot( tiles[top:bot, sideMargin:-sideMargin] )
-        self.cells[row, 0] = plotCell(ax)
-      else:
-        for col in range(ncols):
-          left = sideMargin + col*(cellWidth + cellPadding)
-          right = left + cellWidth
-          ax = plt.subplot( tiles[top:bot, left:right] )
-          self.cells[row, col] = plotCell(ax)
-    # Space out the title axis. 
-    self.tax = plt.subplot( tiles[:titleMargin, sideMargin:-sideMargin] )
-    # Space out an array of side axes to hold row labels. 
-    self.sax = np.empty( (nrows,), dtype=object)
-    left, right = 0, sideMargin - 3*cellPadding
-    for row in range(nrows):
-      top = titleMargin + headMargin + row*(cellHeight + cellPadding)
-      bot = top + cellHeight
-      self.sax[row] = plt.subplot( tiles[top:bot, left:right] )
-    # Space out an array of header axes on the top to hold column labels. 
-    if joinlabel is True:
-      self.hax = np.empty( (1,), dtype=object)
-      top, bot = titleMargin, titleMargin + headMargin
-      self.hax[0] = plt.subplot( tiles[top:bot, sideMargin:-sideMargin] )
-    else:
-      self.hax = np.empty( (ancols,), dtype=object)
-      top, bot = titleMargin, titleMargin + headMargin
-      for col in range(ancols):
-        left = sideMargin + col*(cellWidth + cellPadding)
-        right = left + cellWidth
-        self.hax[col] = plt.subplot( tiles[top:bot, left:right] )
-    # Side header axis, for the row label header. 
-    top, bot = titleMargin, titleMargin + headMargin
-    left, right = 0, sideMargin - 3*cellPadding
-    self.shax = plt.subplot( tiles[top:bot, left:right] )
-    # Narrow axis on the right side for the color bar. 
-    top, bot = titleMargin + headMargin, -footMargin
-    left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
-    self.cax = plt.subplot( tiles[top:bot, left:right] )
-    # Space out a tiny axis above the color bar to indicate units. Size it to
-    # line up with the column labels. If there's only one column, and so the
-    # column labels are compressed, still pretend they are sized normally. 
-    top, bot = titleMargin + headMargin - unitMargin, titleMargin + headMargin
-    left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
-    self.uax = plt.subplot( tiles[top:bot, left:right] )
-
-    # Make room for a label at the bottom. If footlabel isn't True, this will
-    # probably overlap with x axis labels. 
-    self.fax = plt.subplot( tiles[-15:-5, sideMargin:-sideMargin] )
-
-    # The title, header, and side axes are for spacing text, not showing data.
-    # The axes themselves need to be hidden. The colorbar axis is hidden by
-    # default as well, though it may be un-hidden later. 
-    self.tax.axis('off')
-    self.shax.axis('off')
-    self.cax.axis('off')
-    self.uax.axis('off')
-    self.fax.axis('off')
-    [ x.axis('off') for x in self.sax ]
-    [ x.axis('off') for x in self.hax ]
-    # We're done setting up the axes. If we were given any other arguments, 
-    # send them to the parameter handler. 
-    return self.setParams(**kargs)
-
-  # ---------------------------------------------------------------------------
   # ---------------------------------------------------- Adjust Plot Parameters
   # ---------------------------------------------------------------------------
 
@@ -664,43 +684,6 @@ class plotWindow:
       else:
         [ cell.setParams( **{key:val} ) for cell in self.cells.flatten() ]
     return
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------------------------ Add Data
-  # ---------------------------------------------------------------------------
-
-  # The Plot Window doesn't actually handle any data. Individual cells should
-  # instead be accessed as array entries. 
-  def __getitem__(self, index):
-    # If we're asked for a single cell, return that cell. 
-    if isinstance(index, int):
-      return self.cells.flatten()[index]
-    elif isinstance(index, tuple) and all( isinstance(x, int) for x in index ):
-      return self.cells[index]
-    # Otherwise, we were asked for a slice. In that case, return a Plot Window
-    # object that has only the requested slice of cells. This allows parameters
-    # to be set for that whole slice of cells without touching the rest. 
-    if isinstance(index, tuple):
-      cells = self.cells[index]
-    else:
-      self.cells.flatten()[index]
-    return plotWindow(cells=cells)
-
-  # If the window gets passed a contour, just send it along to each cell. 
-  def setContour(self, *args, **kargs):
-    return [ cell.setContour(*args, **kargs) for cell in self.cells.flatten() ]
-
-  # If the window gets passed a line, just send it along to each cell. 
-  def setLine(self, *args, **kargs):
-    return [ cell.setLine(*args, **kargs) for cell in self.cells.flatten() ]
-
-  # If the window gets passed a mesh, just send it along to each cell. 
-  def setMesh(self, *args, **kargs):
-    return [ cell.setMesh(*args, **kargs) for cell in self.cells.flatten() ]
-
-  # If the window gets passed a bar plot, just send it along to each cell. 
-  def setBars(self, *args, **kargs):
-    return [ cell.setBars(*args, **kargs) for cell in self.cells.flatten() ]
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------- Get Cell Extrema
@@ -957,67 +940,6 @@ class plotCell:
       # Report any unfamiliar parameters. 
       else:
         print 'WARNING: Unknown param ', key, ' = ', val
-    return
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------------------- Set Cell Data
-  # ---------------------------------------------------------------------------
-
-  def setContour(self, *args, **kargs):
-    # Store any keyword parameters meant for the contourf call. 
-    self.ckargs = kargs
-    # Accept the contour with or without its spatial coordinates. 
-    if len(args)==1:
-      self.cz = args[0]
-    elif len(args)==3:
-      self.x, self.y, self.cz = args
-    # If we're passed a weird number of arguments, bail. 
-    else:
-      print 'ERROR: Illegal number of arguments to plotCell.setContour '
-      exit()
-    return
-
-  def setLine(self, *args, **kargs):
-    # Initialize line list. 
-    if self.lines is None:
-      self.lines = []
-    # If we're given two numpy arrays, the first is the horizontal coordinate. 
-    if len(args)>1 and isinstance(args[1], np.ndarray):
-      self.lines.append( (args, kargs) )
-      if self.x is None:
-        self.x = args[0]
-    # If only given one array, use self.x. 
-    else:
-      self.lines.append( ( (self.x,) + args, kargs ) )
-    return
-
-  def setMesh(self, *args, **kargs):
-    # Store any keyword parameters meant for the contourf call. 
-    self.mkargs = kargs
-    # Accept the contour with or without its spatial coordinates. 
-    if len(args)==1:
-      self.mz = args[0]
-    elif len(args)==3:
-      self.x, self.y, self.mz = args
-    # If we're passed a weird number of arguments, bail. 
-    else:
-      print 'ERROR: Illegal number of arguments to plotCell.setMesh '
-      exit()
-    return
-
-  def setBars(self, *args, **kargs):
-    # Initialize line list. 
-    if self.bars is None:
-      self.bars = []
-    # If we're given two numpy arrays, the first is the horizontal coordinate. 
-    if len(args)>1 and isinstance(args[1], np.ndarray):
-      self.bars.append( (args, kargs) )
-      # If we don't yet have a horizontal coordinate, keep this one. 
-      if self.x is None:
-        self.x = args[0]
-    # If only given one array, use self.x. 
-    else:
-      self.bars.append( ( (self.x,) + args, kargs ) )
     return
 
   # ---------------------------------------------------------------------------

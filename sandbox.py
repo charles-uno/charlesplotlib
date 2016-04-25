@@ -40,16 +40,22 @@ def contour():
 
   x = np.linspace(0, 10, n)
   y = np.linspace(0, 10, n)
-  z = np.random.rand(n, n)
 
-  pw[0].contour(x, y, z)
+  for i in range(4):
+    z = np.random.rand(n, n)
+    pw[i].contour(x, y, z)
 
-  x = np.linspace(0, 10, n+1)
-  y = np.linspace(0, 10, n+1)
-  z = np.random.rand(n, n)
+  clabs = ('column 0', 'column 1')
 
-  pw[3].mesh(x, y, z)
+  rlabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
 
+  pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
+
+
+#  x = np.linspace(0, 10, n+1)
+#  y = np.linspace(0, 10, n+1)
+#  z = np.random.rand(n, n)
+#  pw[3].mesh(x, y, z)
 
   pw.draw()
 

@@ -4,22 +4,22 @@
 
 # Spring 2016
 
-# Note: This document wraps at column 80. 
+# Note: This document wraps at column 72. 
 
-# #############################################################################
-# #################################################################### Synopsis
-# #############################################################################
+# #####################################################################
+# ############################################################ Synopsis
+# #####################################################################
 
-# The plot window object is a wrapper around Matplotlib, designed to create
-# plots which look nice in a dissertation or talk. 
+# The plot window object is a wrapper around Matplotlib, designed to
+# create plots which look nice in a dissertation or talk. 
 
-# #############################################################################
-# ##################################################### Import Python Libraries
-# #############################################################################
+# #####################################################################
+# ############################################# Import Python Libraries
+# #####################################################################
 
-# Change matplotlib settings to allow use over SSH without X forwarding. 
 import matplotlib
 import os
+# Allows use over SSH, even from a machine not running an xserver. 
 if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
   matplotlib.use('Agg')
 from matplotlib import gridspec, rc
@@ -35,18 +35,332 @@ from sys import argv
 from time import localtime as lt
 from numpy.ma import masked_where
 
-# #############################################################################
-# ####################################################### Constants of Interest
-# #############################################################################
+# #####################################################################
+# #################################################### Helper Functions
+# #####################################################################
 
-# Physical constants. 
-class phys():
-  mu0 = 1256.63706 # nH/m
-  eps0 = 8.854e-9 # mF/m
-  qe = 1.60218e-25 # MC
-  me = 9.10938e-28 # g
-  RE = 6.378388 # Mm
-  RI = 6.478388 # Mm
+# Timestamp to label output, formatted yyyymmdd_hhmmss. 
+def now():
+  return ( znt(lt().tm_year, 4) + znt(lt().tm_mon, 2) +
+           znt(lt().tm_mday, 2) + '_' + znt(lt().tm_hour, 2) +
+           znt(lt().tm_min, 2) + znt(lt().tm_sec, 2) )
+
+
+
+
+# Pads an integer with zeros. Floats are truncated. 
+def znt(x, width=0):
+  return str( int(x) ).zfill(width)
+
+# #####################################################################
+# ################################################### Global Parameters
+# #####################################################################
+
+# For talks, all font sizes will be scaled up. 
+_fontscale_ = 1.
+
+# Format for image output: PDF, PNG, SVG, etc. 
+_savefmt_ = 'pdf'
+
+# If we save any plots, it will be to a timestamped directory. 
+_savepath_ = os.environ['HOME'] + '/Desktop/plots/' + now()
+
+# #####################################################################
+# ######################################################### Plot Window
+# #####################################################################
+
+class plotwindow:
+
+  # Array of Plot Cells. 
+  cells = None
+
+  # Footer axis, right axis, and title axis. 
+  fax, rax, tax = None, None, None
+
+  # Arrays of header axes and left axes (to label rows and columns). 
+  haxes, laxes = None, None
+
+  # Keep track of the default font size. 
+  fontsize = None
+
+  # -------------------------------------------------------------------
+  # -------------------------------------------- Initialize Plot Window
+  # -------------------------------------------------------------------
+
+  def __init__(self, nrows=1, ncols=1, slope=0.8, _cells_=None, landscape=False):
+    global _fontscale_
+
+    # TODO: All we should be doing at this point is creating an array
+    # of cells. Figuring out how many cells to plot, the proportions of
+    # the plot, etc, should happen as late as possible (so that those
+    # parameters can be adjusted). 
+
+    # Sometimes, temporary plot windows are created, allowing
+    # manipulation of a slice of the cells array. 
+    if _cells_ is not None:
+      self.cells = _cells_
+      return
+    # The width of the plot matches the width of text area. For a
+    # paper, that's taken to be 5.75" (which is the text width in the
+    # LaTeX dissertation template). For a talk, it's taken to be 10".
+    inchwidth = 10. if landscape else 5.75
+    # For a wider window, use a larger font size. 
+    fontsize = 15 if landscape else 10
+    # Set the text to use LaTeX. 
+    rc( 'font', **{ 'family':'sans-serif', 'sans-serif':['Helvetica'], 
+                    'size':str( fontsize*_fontscale_ ) } )
+    rc('text', usetex=True)
+    rc('text.latex', preamble='\usepackage{amsmath}, ' +
+                              '\usepackage{amssymb}, ' + 
+                              '\usepackage{color}')
+    # The window will be broken up into some number of equally-sized
+    # tiles. That's the unit we use to specify the relative sizes of
+    # plot elements. 
+    titleheight = int( 15*_fontscale_ )
+    headheight = 10 if ncols > 1 else 1
+    footheight = 10
+    sidewidth = 10
+    cellpad = 5
+    labelpad = 15
+    cellwidth = (210/ncols) - cellpad
+    cellheight = int( cellwidth*slope )
+    # Figure out the total number of tiles we need. 
+    tilewidth = 210 + 2*sidewidth + 4*labelpad
+    tileheight = ( titleheight + headheight + nrows*cellheight +
+                   (nrows-1)*cellpad + 2*labelpad + footheight )
+    # Set the window size to ensure that the tiles are square. 
+    inchheight = tileheight*inchwidth/tilewidth
+    # Create the window. Tell it that we want the subplot area to go
+    # all the way to the edges, then break that area up into tiles. 
+    fig = plt.figure(figsize=(inchwidth, inchheight), facecolor='white')
+    fig.canvas.set_window_title('CPL Plotter')
+    tiles = gridspec.GridSpec(tileheight, tilewidth)
+    plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
+    # Create a lattice of axes and use them to initialize an array of
+    # plot cell objects. 
+    self.cells = np.empty( (nrows, ncols), dtype=object)
+    for row in range(nrows):
+      top = titleheight + headheight + row*(cellheight + cellpad)
+      bot = top + cellheight
+      for col in range(ncols):
+        left = 2*labelpad + sidewidth + col*(cellwidth + cellpad)
+        right = left + cellwidth
+        ax = plt.subplot( tiles[top:bot, left:right] )
+        self.cells[row, col] = plotcell(ax)
+    # Space out the title axis. 
+    left = 2*labelpad + sidewidth
+    self.tax = plt.subplot( tiles[:titleheight, left:-left] )
+    # Space out an array of axes on the left to hold row labels. 
+    self.laxes = np.empty( (nrows,), dtype=object)
+    left, right = labelpad, labelpad + sidewidth
+    for row in range(nrows):
+      top = titleheight + headheight + row*(cellheight + cellpad)
+      bot = top + cellheight
+      self.laxes[row] = plt.subplot( tiles[top:bot, left:right] )
+    # Space out an array of header axes to hold column labels. 
+    self.haxes = np.empty( (ncols,), dtype=object)
+    top, bot = titleheight, titleheight + headheight
+    for col in range(ncols):
+      left = 2*labelpad + sidewidth + col*(cellwidth + cellpad)
+      right = left + cellwidth
+      self.haxes[col] = plt.subplot( tiles[top:bot, left:right] )
+    # Axis on the right. 
+    top, bot = titleheight + headheight, -footheight - 2*labelpad
+    left, right = -labelpad - sidewidth, -labelpad
+    self.rax = plt.subplot( tiles[top:bot, left:right] )
+    # Foot axis for the color bar or legend. 
+    top, bot = -labelpad - footheight, -labelpad
+    left = 2*labelpad + sidewidth
+    self.fax = plt.subplot( tiles[top:bot, left:-left] )
+
+#    self.tax.axis('off')
+#    self.shax.axis('off')
+#    self.cax.axis('off')
+#    self.uax.axis('off')
+#    self.fax.axis('off')
+#    [ x.axis('off') for x in self.sax ]
+#    [ x.axis('off') for x in self.hax ]
+
+    return
+
+  # -------------------------------------------------------------------
+  # ------------------------------------------------- Access Plot Cells
+  # -------------------------------------------------------------------
+
+  # The plot window itself doesn't actually handle any data. Instead, 
+  # data is forwarded to cells or slices of cells using array notation.
+  def __getitem__(self, i):
+    # If we're asked for a single cell, return that cell. Access can
+    # use a 2D index or a 1D index (in which case the array is 
+    # flattened).  
+    if isinstance(i, int):
+      return self.cells.flatten()[i]
+    elif isinstance(i, tuple) and all( isinstance(j, int) for j in i ):
+      return self.cells[i]
+    # Otherwise, presumably, we were asked for a slice. In that case,
+    # return a temporary plot window object which contains only the
+    # requested slice of cells. Again, 1D and 2D notation are OK. 
+    if isinstance(i, tuple):
+      cells = self.cells[i]
+    else:
+      self.cells.flatten()[i]
+    return plotwindow( _cells_=cells )
+
+  # -------------------------------------------------------------------
+  # ---------------------------------------------------------- Add Data
+  # -------------------------------------------------------------------
+
+  # If given a contour to plot, forward it to each cell. 
+  def contour(self, *args, **kargs):
+    return [ c.contour(*args, **kargs) for c in self.cells.flatten() ]
+
+  # If given a line to plot, forward to each cell. 
+  def line(self, *args, **kargs):
+    return [ c.line(*args, **kargs) for c in self.cells.flatten() ]
+
+  # If given a mesh to plot, forward to each cell. 
+  def mesh(self, *args, **kargs):
+    return [ c.mesh(*args, **kargs) for c in self.cells.flatten() ]
+
+  # If given a bar plot, forward to each cell. 
+  def bar(self, *args, **kargs):
+    return [ c.bar(*args, **kargs) for c in self.cells.flatten() ]
+
+  # -------------------------------------------------------------------
+  # --------------------------------------------- Find Extrema of Cells
+  # -------------------------------------------------------------------
+
+
+
+
+  # -------------------------------------------------------------------
+  # ---------------------------------------------------- Nuke Old Plots
+  # -------------------------------------------------------------------
+
+
+  def clear(self):
+    return plt.close('all')
+
+  # -------------------------------------------------------------------
+  # --------------------------------------------- Save or Show the Plot
+  # -------------------------------------------------------------------
+
+  def draw(self, filename=None):
+    global _savefmt_, _savepath_
+
+
+    [ c.draw() for c in self.cells.flatten() ]
+
+
+    # If the flag -i was given, save the output as an image.
+    if '-i' in argv and isinstance(filename, str):
+      # Make sure there's a directory to put the output in. 
+      if not os.path.exists( _savepath_ ):
+        os.makedirs( _savepath_ )
+      # Save the image. If no format is specified, use the default. 
+      if '.' in name:
+        out = _savepath_ + '/' + filename
+      else:
+        out = _savepath_ + '/' + filename + '.' + _savefmt_
+      print 'Saving ' + out
+      return plt.savefig(out)
+    # Otherwise, show the plot on the screen. 
+    else:
+      return plt.show()
+
+# #####################################################################
+# ########################################################### Plot Cell
+# #####################################################################
+
+
+
+class plotcell:
+
+  bars = None
+  contours = None
+  lines = None
+  meshes = None
+
+  # -------------------------------------------------------------------
+  # ---------------------------------------------- Initialize Plot Cell
+  # -------------------------------------------------------------------
+
+  def __init__(self, ax):
+    self.ax = ax
+    return
+
+  # -------------------------------------------------------------------
+  # ---------------------------------------------------------- Add Data
+  # -------------------------------------------------------------------
+
+  def bar(self, x, y, *args, **kargs):
+    # Make sure we have a list to store these bar plots. 
+    if self.bars is None:
+      self.bars = []
+    # Store the bar plot. We'll actually add it to the plot later. 
+    self.bars.append( (x, y, args, kargs) )
+    return
+
+  def contour(self, x, y, z, *args, **kargs):
+    # Make sure we have a list to store these contours. 
+    if self.contours is None:
+      self.contours = []
+    # Store the contour. We'll actually add it to the plot later. 
+    self.contours.append( (x, y, z, args, kargs) )
+    return
+
+  def line(self, x, y, *args, **kargs):
+    # Make sure we have a list to store these contours. 
+    if self.lines is None:
+      self.lines = []
+    # Store the line. We'll actually add it to the plot later. 
+    self.lines.append( (x, y, args, kargs) )
+    return
+
+  def mesh(self, x, y, z, *args, **kargs):
+    # Make sure we have a list to store these meshes. 
+    if self.meshes is None:
+      self.meshes = []
+    # Store the mesh. We'll actually add it to the plot later. 
+    self.meshes.append( (x, y, z, args, kargs) )
+    return
+
+  # -------------------------------------------------------------------
+  # --------------------------------------------------------- Draw Data
+  # -------------------------------------------------------------------
+
+  def draw(self):
+
+    # TODO: Handle limits, ticks, tick labels for x, y, and z. 
+
+    # Handle contours first, if any. 
+    if self.contours is not None:
+      for x, y, z, args, kargs in self.contours:
+        self.ax.contourf(x, y, z, *args, **kargs)
+    # Handle the color mesh, if any. 
+    if self.meshes is not None:
+      for x, y, z, args, kargs in self.meshes:
+        self.ax.pcolormesh(x, y, z, *args, **kargs)
+    # Draw the bar plots, if any. 
+    if self.bars is not None:
+      for x, y, args, kargs in self.bars:
+        self.ax.bar(x, y, *args, **kargs)
+    # Draw the lines, if any. 
+    if self.lines is not None:
+      for x, y, args, kargs in self.lines:
+        self.ax.plot(x, y, *args, **kargs)
+
+    '''
+    f, l = ('left', 'right') if not self.flipx else ('right', 'left')
+    self.ax.xaxis.get_majorticklabels()[0].set_horizontalalignment(f)
+    self.ax.xaxis.get_majorticklabels()[-1].set_horizontalalignment(l)
+    self.ax.yaxis.get_majorticklabels()[0].set_verticalalignment('bottom')
+    self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
+    '''
+    return
+
+
+
 
 # #############################################################################
 # ###################################################### LaTeX Helper Functions
@@ -112,442 +426,11 @@ def tex(x):
             }
   return '?' if x not in texdict else texdict[x]
 
-# #############################################################################
-# ######################################################### Tuna Plotter Object
-# #############################################################################
 
-class tunaPlotter:
-
-  # Keep track of the paths where our data is coming from. 
-  paths = None
-  # Remember the last few arrays we've read in to avoid duplicating our work. 
-  arrays = None
-  # Some runs have been longer than 300 seconds. All runs are at least 300
-  # seconds, and that turns out to be a pretty good window for looking at Pc4s. 
-  tmax = 300
-
-  # ===========================================================================
-  # ======================================================== Initialize Plotter
-  # ===========================================================================
-
-  def __init__(self):
-    # Check if we're supposed to be saving this image or showing it. 
-    if '-i' in argv:
-      self.savepath = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
-      os.mkdir(self.savepath)
-    else:
-      self.savepath = None
-    # Check for any path(s) from the terminal. 
-    self.setPaths(*argv)
-    # If no paths were given, use the default. 
-    if not self.paths:
-      print 'Using default data path. '
-      self.setPaths('/media/My Passport/RUNS/JDRIVE_LPP_4')
-    # Sometimes the plotter isn't supposed to make any plots at all. Instead,
-    # its job is to go through and pickle some fresh data. 
-    if 'pickle' in argv:
-      self.pickle()
-      exit()
-    return
-
-  # ===========================================================================
-  # ================================================ Finding and Filtering Data
-  # ===========================================================================
-
-  # Given one or more paths, find all data directories, as well as the
-  # parameters used by each run. 
-  def setPaths(self, *args):
-    # Note that self.paths isn't a list of paths to run directories -- it's a
-    # dictionary, keyed by those paths, which lists the parameters used by each
-    # run. We can stoll loop over path in self.paths, but this makes it easier
-    # to track down the run we're looking for based on its parameters. 
-    self.paths = {}
-    # Increment over everything we're passed. 
-    for arg in args:
-      # Ignore non-paths. 
-      if os.path.isdir(arg):
-        for root, dirs, files in os.walk(arg):
-          if 'params.in' in files:
-            # Always use absolute paths. End directory paths with slashes. 
-            path = os.path.abspath(root) + '/'
-            self.paths[path] = self.getParams(path)
-    return
-
-  # Grab all parameters from a parameter input file. 
-  def getParams(self, path):
-    # Parameters are returned as a dictionary. We add some default parameters at the beginning so we don't run into any key errors while filtering runs. 
-    params = {'bdrive':0, 'jdrive':0, 'inertia':-1, 'fdrive':0.016, 'azm':0, 'n1':150, 'lpp':4, 'ldrive':5}
-    # The input file has one parameter per line, 'key = val'. 
-    with open(path + 'params.in', 'r') as paramsfile:
-      paramlines = paramsfile.readlines()
-    for line in paramlines:
-      key, val = [ x.strip() for x in line.split('=') ]
-      params[key] = num(val)
-    return params
-
-  # Find all values for a given keyword parameter that are present in the runs
-  # we're looking at. 
-  def getValues(self, key):
-    values = []
-    # We want to be able to ask about keys that are not present. 
-    for params in self.paths.values():
-      values.append( params[key] if key in params else None )
-    # Make sure we can safely assume the values are in ascending order. 
-    return sorted( set(values) )
-
-  # Given some keyword arguments, filter self.paths. 
-  def getPath(self, **kargs):
-    # Start with all the paths we have, then weed out any that don't match. 
-    paths = [ p for p in self.paths ]
-    for key, val in kargs.items():
-      paths = [ p for p in paths if self.paths[p][key]==val ]
-    # If there's anything other than exactly one match, something is wrong. 
-    if len(paths)<1:
-      print 'WARNING: No matching path found for ', kargs
-      return None
-    elif len(paths)>1:
-      print 'ERROR: Multiple matching paths found for ', kargs
-      exit()
-    else:
-      return paths[0]
-
-  # Find the most recent run, including runs still in progress. 
-  def newPath(self):
-    root = '/export/scratch/users/mceachern/'
-    runs = [ d for d in os.listdir(root) if os.path.isdir(root + d) ]
-    # Sort by time of last modification, then return the last path. 
-    return max( (os.path.getmtime(d), d) for d in runs )[1]
-
-  # ===========================================================================
-  # ============================================================== Data Pickler
-  # ===========================================================================
-
-  # Tuna outputs data as a text file full of numbers. Such files are fast to
-  # create, but large to store, and slow to load. This routine goes through the
-  # data, takes the time to read the values into Numpy arrays, and saves the
-  # arrays as pickles. Pickle files are Python-specific, but they're compressed
-  # (usually by about a factor of 3 compared to text) and they load fast (a
-  # factor of 10, sometimes better, compared to text). 
-  def pickle(self):
-    # The Tuna Plotter object already tracked down all of the data directories,
-    # either from arguments from the terminal or its internal defaults. 
-    for path in self.paths:
-      print '\n' + path
-      # The readArray function makes a pickle whenever it reads in a dat file.
-      [ readArray(f) for f in files(path, end='.dat') ]
-    return
-
-  # ===========================================================================
-  # =============================================================== Data Access
-  # ===========================================================================
-
-  # This wrapper on readArray remembers the last few files we've read in, in
-  # case we need them again. 
-  def readArray(self, filename):
-    if self.arrays is None or len(self.arrays)>20:
-      self.arrays = {}
-    if filename not in self.arrays:
-      self.arrays[filename] = readArray(filename)
-    return self.arrays[filename]
-
-  # All arrays come in through here. It knows which fields are predominantly
-  # imaginary (well, it knows how to look it up), and it knows how to combine
-  # fields to get energy density, Poynting flux, etc. This is how we keep the
-  # individual plot methods clean. 
-  def getArray(self, path, name, real=None):
-    # Check if we're looking for something that corresponds to a data file...
-    if name in ('BfE', 'BfI', 'BqE', 'BqI', 'Bx', 'By', 'Bz', 'Ex', 'Ey', 
-                'Ez', 'JyDrive', 'Jz', 'q', 't'):
-      # We can give the real component or the imaginary component of a complex
-      # field. 
-      if real is True:
-        arr = np.real( self.readArray(path + name + '.dat') )
-      elif real is False:
-        arr = np.imag( self.readArray(path + name + '.dat') )
-      # If not specified, use real for poloidal components. 
-      else:
-        if name in ('Ex', 'By', 'Ez', 'Jz', 'BqE', 'BqI'):
-          arr = np.imag( self.readArray(path + name + '.dat') )
-        else:
-          arr = np.real( self.readArray(path + name + '.dat') )
-      # Chop off anything after tmax time steps. 
-      return arr[..., :self.tmax] if name=='t' or len(arr.shape)>2 else arr
-    # A few quantities get printed out with scale factors. Un-scale them. 
-    # Radius in Mm (from RE). 
-    elif name=='r':
-      return phys.RE*self.readArray(path + 'r.dat')
-    # Number density in 1/Mm^3, from 1/cm^3. 
-    elif name=='n':
-      return 1e24*self.readArray(path + 'n.dat')
-    # Perpendicular electric constant, from units of eps0 to mF/m. 
-    elif name=='epsPerp' or name=='epsp':
-      return phys.eps0*self.readArray(path + 'epsPerp.dat')
-    # Conductivities. Printed in S/m but we want mS/m. 
-    elif name in ('sigH', 'sigP', 'sig0'):
-      return 1e-3*self.readArray(path + name + '.dat')
-    # Altitude in km. Note that we read r in RE and we store RE in Mm. 
-    elif name=='alt':
-      return 1000*(self.getArray(path, 'r') - phys.RE)
-    # Normalied latitude. 
-    elif name=='C':
-      cosq = np.cos( self.getArray(path, 'q') )
-      cosq0 = cosq[:, 0]
-      return cosq/cosq0[:, None]
-
-    if name=='comp':
-      return None
+savepath = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 
 
-    # Driving electric field in mV/m. 
-    elif name=='EyDrive':
-      return self.getArray(path, 'JyDrive')/self.getArray(path, 'epsPerp')
-    # Perpendicular currents, computed from electric fields and conductivity. 
-    elif name=='Jx':
-      Ex, Ey = self.getArray(path, 'Ex', real=real), self.getArray(path, 'Ey', real=real)
-      sigP, sigH = self.getArray(path, 'sigP'), self.getArray(path, 'sigH')
-      return sigP[:, :, None]*Ex - sigH[:, :, None]*Ey
-    elif name=='Jy':
-      Ex, Ey = self.getArray(path, 'Ex', real=real), self.getArray(path, 'Ey', real=real)
-      sigP, sigH = self.getArray(path, 'sigP'), self.getArray(path, 'sigH')
-      return sigH[:, :, None]*Ex + sigP[:, :, None]*Ey
-    # McIlwain parameter. 
-    elif name=='L':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      return r / ( phys.RE * np.sin(q)**2 )
-    # McIlwain parameter as a 1D array. 
-    elif name=='L0':
-      return self.getArray(path, 'L')[:, 0]
-    # Latitude in degrees, from colatitude in radians. 
-    elif name=='lat':
-      return 90 - self.getArray(path, 'q')*180/np.pi
-    # Latitude only along the ionospheric boundary. 
-    elif name=='lat0':
-      return self.getArray(path, 'lat')[:, 0]
-    # Differential volume for the grid, based on dipole coordinates and the
-    # Jacobian determinant. 
-    elif name=='dV':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      # Invariant colatitude. 
-      cosq0 = np.sqrt( 1 - phys.RI*np.sin(q)**2/r )
-      # Dipole coordinates. 
-      u1 = -phys.RI/(r*phys.RE) * np.sin(q)**2
-      u3 = phys.RI**2/(r*phys.RE)**2 * np.cos(q)/cosq0
-      # Dipole differentials. Rolling messes up the edges, so we zero them. 
-      du1 = ( np.roll(u1, shift=1, axis=0) - np.roll(u1, shift=-1, axis=0) )/2
-      du1[0, :], du1[-1, :] = 0, 0
-      du3 = ( np.roll(u3, shift=1, axis=1) - np.roll(u3, shift=-1, axis=1) )/2
-      du3[:, 0], du3[:, -1] = 0, 0
-      # Jacobian determinant. 
-      jac = (r*phys.RE)**6/phys.RI**3 * cosq0/( 1 + 3*np.cos(q)**2 )
-      # The Jacobian may be negative. Make sure we return a positive volume. 
-      return np.abs( du1*du3*jac )
-    # Perpendicular grid spacing. This is cheating a little bit, since the
-    # coordinates aren't orthogonal, but should give a decent estimate.  
-    elif name=='dx0':
-      return phys.RI*self.d( self.getArray(path, 'q')[:, 0] )
-    # Azimuthal effective grid spacing for taking derivatives. This assumes an
-    # azimuthal mode number of 1, and scales linearly. 
-    elif name=='dy0':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      return r[:, 0]*np.sin( q[:, 0] )
-    # Differential field line length. 
-    elif name=='dz':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      dr = self.d(r, axis=1)
-      rdq = r*self.d(q, axis=1)
-      return np.sqrt( dr**2 + rdq**2 )
-    # Field line length right along the ionospheric boundary. 
-    elif name=='dz0':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      dr = r[:, 1] - r[:, 0]
-      rdq = 0.5*( r[:, 1] + r[:, 0] )*( q[:, 1] - q[:, 0] )
-      return np.sqrt( dr**2 + rdq**2 )
-    # Alfven bounce frequency. The axis will be set by the lines we draw. 
-    elif name=='f':
-      return None
-
-    elif name=='B':
-      return None
-
-
-    # Toroidal Poynting flux. 
-    elif name=='Stor':
-      return self.getArray(path, 'Ex', real=real)*np.conj( self.getArray(path, 'By', real=real) )/phys.mu0
-    # Poloidal Poynting flux. 
-    elif name=='Spol':
-      return -self.getArray(path, 'Ey', real=real)*np.conj( self.getArray(path, 'Bx', real=real) )/phys.mu0
-    # Crosswise Poynting flux. 
-    elif name=='Sx':
-      return self.getArray(path, 'Ey', real=real)*np.conj( self.getArray(path, 'Bz', real=real) )/phys.mu0
-    # Azimuthal Poynting flux. 
-    elif name=='Sy':
-      return -self.getArray(path, 'Ex', real=real)*np.conj( self.getArray(path, 'Bz', real=real) )/phys.mu0
-    # Parallel Poynting flux. 
-    elif name=='Sz' or name=='S':
-      return self.getArray(path, 'Spol') + self.getArray(path, 'Stor')
-    # Sometimes we don't actually need the array, such as when we're grabbing
-    # the y axis for a line plot... so the axis will be set by line values. 
-    elif name in ('logU', 'U'):
-      return None
-    # Poloidal magnetic field contribution to the energy density. 
-    elif name=='uBx':
-      return 0.5*self.getArray(path, 'Bx')**2 / phys.mu0
-    # Toroidal magnetic field contribution to the energy density. 
-    elif name=='uBy':
-      return 0.5*self.getArray(path, 'By')**2 / phys.mu0
-
-    # Energy in the compressional magnetic field... kinda. This is ignoring the
-    # zeroth-order magnetic field. Really, this is just for computing the RMS
-    # magnetic field. 
-    elif name=='uBz':
-      return 0.5*self.getArray(path, 'Bz')**2 / phys.mu0
-
-    # Magnetic field contribution to the energy density. 
-    elif name=='uB':
-      return self.getArray(path, 'uBx') + self.getArray(path, 'uBy')
-    # Toroidal electric field contribution to the energy density. 
-    elif name=='uEx':
-      E, epsPerp = self.getArray(path, 'Ex'), self.getArray(path, 'epsPerp')
-      return 0.5*epsPerp[:, :, None]*E[:, :, :]**2
-    # Poloidal electric field contribution to the energy density. 
-    elif name=='uEy':
-      E, epsPerp = self.getArray(path, 'Ey'), self.getArray(path, 'epsPerp')
-      return 0.5*epsPerp[:, :, None]*E[:, :, :]**2
-    # Magnetic field contribution to the energy density. 
-    elif name=='uE':
-      return self.getArray(path, 'uEx') + self.getArray(path, 'uEy')
-    # Poloidal energy density. 
-    elif name=='upol':
-      return self.getArray(path, 'uEy') + self.getArray(path, 'uBx')
-    # Toroidal energy density. 
-    elif name=='utor':
-      return self.getArray(path, 'uEx') + self.getArray(path, 'uBy')
-    # Total energy density. 
-    elif name=='u':
-      return self.getArray(path, 'upol') + self.getArray(path, 'utor')
-    # Integrated magnetic energy. 
-    elif name=='UB':
-      ux, uy = self.getArray(path, 'uBx'), self.getArray(path, 'uBy')
-      dV = self.getArray(path, 'dV')
-      return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated electric energy. 
-    elif name=='UE':
-      ux, uy = self.getArray(path, 'uEx'), self.getArray(path, 'uEy')
-      dV = self.getArray(path, 'dV')
-      return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated poloidal energy. 
-    elif name=='Upol':
-      ux, uy = self.getArray(path, 'uBx'), self.getArray(path, 'uEy')
-      dV = self.getArray(path, 'dV')
-      return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated toroidal energy. 
-    elif name=='Utor':
-      ux, uy = self.getArray(path, 'uEx'), self.getArray(path, 'uBy')
-      dV = self.getArray(path, 'dV')
-      return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-
-    # Integrated energy in each field component. This isn't really physical for
-    # the compressional magnetic field -- it's a tool for computing the RMS. 
-    elif name=='UBx':
-      u, dV = self.getArray(path, 'uBx'), self.getArray(path, 'dV')
-      return np.sum( np.sum( u*dV[:, :, None], 1), 0)
-    elif name=='UBz':
-      u, dV = self.getArray(path, 'uBz'), self.getArray(path, 'dV')
-      return np.sum( np.sum( u*dV[:, :, None], 1), 0)
-
-    # Interated volume. 
-    elif name=='V':
-      return np.sum( self.getArray(path, 'dV') )
-
-    # Alfven speed. 
-    elif name=='vA' or name=='va':
-      return 1/np.sqrt( self.getArray(path, 'epsp')*phys.mu0 )
-    # GSE X in RE. 
-    elif name=='X':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      return r*np.sin(q)/phys.RE
-    # GSE Z in RE. 
-    elif name=='Z':
-      r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      return r*np.cos(q)/phys.RE
-    # Keep an eye out for typos. 
-    else:
-      print 'ERROR: Not sure how to get ' + name
-      exit()
-
-  # ===========================================================================
-  # ============================================================ Data Finagling
-  # ===========================================================================
-
-  # Helper for when we need to take a derivative. This gets the difference
-  # between adjacent values (which we then have to scale by dx, etc). 
-  def d(self, arr, axis=0):
-    darr = ( np.roll(arr, shift=-1, axis=axis) - 
-             np.roll(arr, shift=1, axis=axis) )/2
-    darr[0], darr[-1] = darr[1], darr[-2]
-    return darr
-
-  # ===========================================================================
-  # ====================================================== Coordinate Shorthand
-  # ===========================================================================
-
-  # This function returns a dictionary of keyword arguments meant to be plugged
-  # straight into plotWindow.setParams(). 
-  def getCoords(self, path, xaxis='X', yaxis='Z', lim=None):
-    # The "unwrap" flag overwrites the dipole default coordinates. 
-    if '-u' in argv and xaxis=='X' and yaxis=='Z':
-      xaxis, yaxis = 'C', 'L'
-    coords = { 'x':self.getArray(path, xaxis), 'xlabel':tex(xaxis),
-             'y':self.getArray(path, yaxis), 'ylabel':tex(yaxis) }
-
-    # Let's stop worrying about generalizability and make sure these ticks and
-    # tick labels look good for the plots we need. 
-
-    if xaxis=='t':
-      coords['xlims'] = (0, 300)
-      coords['xticks'] = (0, 100, 200, 300)
-      coords['xticklabels'] = ('$0$', '', '', '$300$')
-
-    if yaxis=='lat' or yaxis=='lat0':
-      coords['ylims'] = (44, 72)
-      coords['yticks'] = (44, 51, 58, 65, 72)
-      coords['yticklabels'] = ('$44^\\circ$', '', '$58^\\circ$', '', '$72^\\circ$')
-
-    if xaxis=='X' and yaxis=='Z':
-      coords['xticks'] = (0, 2.5, 5, 7.5, 10)
-      coords['xticklabels'] = ('$0$', '', '$5$', '', '$10$')
-      coords['yticks'] = (-4, -2, 0, 2, 4)
-      coords['yticklabels'] = ('$-4$', '', '$0$', '', '$+4$')
-      coords['ylabelpad'] = -2
-
-    # Latitude vs altitude isn't much good for plotting the whole dipole. Zoom
-    # in on the ionosphere. 
-    if xaxis=='lat' and yaxis=='alt':
-      # Set the window range based on the latitudes seen at the northern
-      # hemisphere boundary, and the altitudes we resolve at those latitudes.
-      lat, alt = coords['x'], coords['y']
-      xmin, xmax = np.min( lat[:, 0] ), np.max( lat[:, 0] )
-      ymin = np.min(alt)
-      # Allow the altitude maximum to be overwritten to zoom in. 
-      ymax = np.max( np.where(lat>xmin, alt, 0) ) if lim is None else lim
-      coords['xlims'], coords['ylims'] = (xmin, xmax), (ymin, ymax)
-#    # The first time output is at 1s, but we want to start the axis at zero. 
-#    if xaxis=='t':
-#      coords['x'] = coords['x'][:self.tmax]
-#      coords['xlims'] = (0, lim)
-    # Dipole plots need outlines drawn on them. 
-    if xaxis=='X' and yaxis=='Z':
-      coords['outline'] = True
-    # If we're looking at electromagnetic energy on the y axis, we want a log
-    # scale, and we also need a minimum. 
-    if yaxis=='U':
-      coords['ylog'] = True
-      coords['ylims'] = (10 if lim is None else lim, None)
-    # For line plots, the y axis is specified by the data. 
-    if coords['y'] is None:
-      del coords['y']
-    return coords
 
 # #############################################################################
 # ########################################################## Plot Window Object
@@ -1700,19 +1583,9 @@ def loopover(**kargs):
   else:
     return [ dict(l) for l in lo ]
 
-# Timestamp for labeling output. 
-def now():
-  return ( znt(lt().tm_year, 4) + znt(lt().tm_mon, 2) + znt(lt().tm_mday, 2) +
-           '_' + znt(lt().tm_hour, 2) + znt(lt().tm_min, 2) +
-           znt(lt().tm_sec, 2) )
-
 # Turn a string into a float or integer. 
 def num(x):
   return int( float(x) ) if float(x)==int( float(x) ) else float(x)
-
-# Turns the number 3 into '003'. If given a float, truncate it. 
-def znt(x, width=0):
-  return str( int(x) ).zfill(width)
 
 # Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space. 
 def tdp(x):
@@ -1742,97 +1615,5 @@ def fmask(x):
 def zmask(x, thr=0):
   return masked_where(np.abs(x) <= thr, x)
 
-
-
-# #############################################################################
-# ################################################################ Array Reader
-# #############################################################################
-
-# Read a file of values into an array. We expect the first line to give the
-# array dimensions. The rest of the file should just be real or complex
-# numbers, and is agnostic to whitespace and newlines. 
-def readArray(filename):
-  # The out prefix is just an older convention for dat files, Fortran output.
-  # We ultimately want to use the Python data format, pickles. 
-  name = filename[ :filename.rfind('.') ]
-  datname, outname, pklname = name + '.dat', name + '.out', name + '.pkl'
-
-  # Allow epsp.dat, but rename to epsPerp.dat. 
-  if os.path.exists( datname.replace('epsPerp', 'epsp') ):
-    outname = outname.replace('epsPerp.out', 'epsp.dat')
-
-  # Allow jz.out, but rename to Jz.dat (change in capitalization). 
-  outname = outname.replace('Jz', 'jz')
-
-  # If we see a old file (.out) move it to the new convention (.dat). 
-  if os.path.isfile(outname) and not os.path.exists(datname):
-    os.rename(outname, datname)
-    print 'Renamed ' + basename(outname) + ' to ' + basename(datname)
-
-  # If a pickle is available, read that instead of parsing the Fortran output. 
-  if os.path.isfile(pklname):
-    print 'Reading ' + basename(pklname) + ' ... ',
-    stdout.flush()
-    # Note how long it takes to read the file. 
-    start = time()
-    with open(pklname, 'rb') as handle:
-      inputArray = pickle.load(handle)
-    print format(time() - start, '5.1f') + 's' + ' ... ' + by(inputArray.shape)
-    return inputArray
-  # If the pickle doesn't exist yet, parse the Fortran output. 
-  elif os.path.isfile(datname):
-    print 'Reading ' + basename(datname) + ' ... ',
-    stdout.flush()
-    # Note how long it takes to read the file. 
-    start = time()
-    # Grab the data as a list of strings. 
-    with open(datname, 'r') as f:
-      arrayLines = f.readlines()
-    # The first line is the dimensions of the array. 
-    dims = [ int(x) for x in arrayLines.pop(0).split() ]
-    # Assemble a one-dimensional array large enough to hold all of the values.
-    # (This is much faster than appending as we go.) This means figuring out if
-    # we want reals or complexes. We check by looking for a comma, since
-    # complex values are listed as ordered pairs. 
-    if len(arrayLines)>0 and ',' in arrayLines[0]:
-      dtype = np.complex
-    else:
-      dtype = np.float
-    # Create the empty array. 
-    nVals = np.prod(dims)
-    vals = np.empty(nVals, dtype=dtype)
-    # Now fill the array with values one at a time. Stop when it's full, or
-    # when we run out of values. 
-    i = 0
-    for line in arrayLines:
-      for val in line.split():
-        # Check if the array is full. 
-        if i==nVals:
-          break
-        # If it's not, grab the next value. 
-        else:
-          vals[i] = com(val)
-          i = i + 1
-    # Reshape and transpose the array. Fortran and Python have opposite
-    # indexing conventions. 
-    inputArray = np.transpose( np.reshape( vals, dims[::-1] ) )
-    # Check the array dimensions. If it's not full, the run may have crashed. 
-    # In that case we return only the time steps that exist. 
-    actualDims = dims[:-1] + [ np.int( i/np.prod(dims[:-1]) ) ]
-    if dims!=actualDims:
-      inputArray = inputArray[ ..., :actualDims[-1] ]
-    # Report how long this all took. 
-    print format(time() - start, '5.1f') + 's'
-    # Dump a pickle for next time. 
-    print '\tCreating ' + basename(pklname) + ' ... ',
-    stdout.flush()
-    start = time()
-    with open(pklname, 'wb') as handle:
-      pickle.dump(inputArray, handle, protocol=-1)
-    print format(time() - start, '5.1f') + 's'
-    return inputArray
-  # If the pickle doesn't exist and there's no Fortran output, return nothing. 
-  else:
-    print 'WARNING: ' + datname + ' not found. '
 
 

@@ -24,7 +24,7 @@ if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
   matplotlib.use('Agg')
 from matplotlib import gridspec, rc
 from matplotlib.colorbar import ColorbarBase
-from matplotlib.colors import LinearSegmentedColormap as LSC
+from matplotlib.colors import LinearSegmentedColormap as lsc
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Wedge
@@ -36,7 +36,7 @@ from time import localtime as lt
 from numpy.ma import masked_where
 
 
-import cubehelix
+import cubehelix as ch
 
 
 # #####################################################################
@@ -72,45 +72,18 @@ def znt(x, width=0):
 # ################################################### Global Parameters
 # #####################################################################
 
-
-import matplotlib.colors as mcolors
-
-
-
-#_cmap_ = plt.get_cmap('cubehelix')
-
-cmap1 = cubehelix.cmap(start=0, rot=-0.33)
-cmap2 = cubehelix.cmap(start=0.5, rot=0.33, reverse=True)
-
-colors1 = cmap1(np.linspace(0., 1, 1024))
-colors2 = cmap2(np.linspace(0, 1, 1024))
-
-colors3 = np.vstack( (colors1, colors2) )
-
-# With no rotations...
-# start=0 -- blue
-# start=1 -- red
-# start=2 -- green
-
-# With half a rotation... note that reverse flips the whole color bar
-
-# start=0, rotation=+0.3 -- dark blue, light purple
-# start=0, rotation=-0.3 -- dark blue, light teal
-
-# start=1, rotation=+0.3 -- dark red (?), light yellow
-# start=1, rotation=-0.3 -- dark red, light purple
-
-# start=2, rotation=+0.3 -- dark green, light teal
-# start=2, rotation=-0.3 -- dark green, light yellow
-
-# prominent red, with light toward yellow and dark toward purple: start=0.5, rot=+0.33
+# Assemble a linear cubehelix and a diverging cubehelix. 
+zo = np.linspace(0., 1., 1024)
+ch1 = ch.cmap(start=0.5, rot=-0.5)(zo)
+ch2 = ch.cmap(start=0.5, rot=0.5, reverse=True)(zo)
+_ch_div_ = lsc.from_list( 'ch_div', np.vstack( (ch1, ch2) ) )
+_ch_lin_ = ch.cmap(start=1.5, rot=-1, reverse=True)
 
 
-cubehelix_linear = cubehelix.cmap(start=0., rot=0.66, reverse=True)
 
-cubehelix_diverging = mcolors.LinearSegmentedColormap.from_list('cubehelix_diverging', colors3)
 
-_cmap_ = cubehelix_linear
+#_cmap_ = _ch_linear_
+_cmap_ = _ch_diverging_
 
 
 

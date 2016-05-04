@@ -36,7 +36,7 @@ from time import localtime as lt
 from numpy.ma import masked_where
 
 
-import cubehelix as ch
+import cubehelix
 
 
 # #####################################################################
@@ -68,22 +68,32 @@ def tex(x):
 def znt(x, width=0):
   return str( int(x) ).zfill(width)
 
+
+
+# #####################################################################
+# ########################################################## Color Maps
+# #####################################################################
+
+# Linear color map, with white at the bottom and black at the top. 
+def cmap_linear(ncolors=1024):
+  ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
+  return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
+
+# Diverging color map, with white in the middle and off-black at the
+# positive and negative extremes. 
+def cmap_diverging(ncolors=1024):
+  u = np.linspace(0., 1., 1024)
+  bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
+  top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
+  ch = lsc.from_list( 'ch_div', np.vstack( (bot, top) ) )
+  return ListedColormap( ch( np.linspace(0.03, 0.97, ncolors) ) )
+
 # #####################################################################
 # ################################################### Global Parameters
 # #####################################################################
 
-# Assemble a linear cubehelix and a diverging cubehelix. 
-zo = np.linspace(0., 1., 1024)
-ch1 = ch.cmap(start=0.5, rot=-0.5)(zo)
-ch2 = ch.cmap(start=0.5, rot=0.5, reverse=True)(zo)
-_ch_div_ = lsc.from_list( 'ch_div', np.vstack( (ch1, ch2) ) )
-_ch_lin_ = ch.cmap(start=1.5, rot=-1, reverse=True)
 
-
-
-
-#_cmap_ = _ch_linear_
-_cmap_ = _ch_diverging_
+_cmap_ = cmap_linear(9)
 
 
 

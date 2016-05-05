@@ -17,6 +17,7 @@
 # ############################################# Import Python Libraries
 # #####################################################################
 
+import cubehelix
 import matplotlib
 import os
 # Allows use over SSH, even from a machine not running an xserver. 
@@ -30,22 +31,17 @@ from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Wedge
 import matplotlib.pyplot as plt
 import numpy as np
-from random import choice
 from sys import argv
 from time import localtime as lt
 from numpy.ma import masked_where
-
-
-import cubehelix
-
 
 # #####################################################################
 # #################################################### Helper Functions
 # #####################################################################
 
+# Grab a sebset of a dictionary by keys.
 def dslice(d, keys):
   return dict( (key, val) for key, val in d.items() if key in keys )
-
 
 # Combine several dictionaries, whether listed as arguments or as the
 # entries in a list or generator. 
@@ -53,22 +49,10 @@ def dsum(*args):
   dlist = list( args[0] ) if len(args)==1 else args
   return dict( sum( [ d.items() for d in dlist ], [] ) )
 
-
-
-
-
-
-
 # Safely get the maximum of a possibly-empty list or iterator. 
 def nax(*args):
-  if len(args)==1:
-    return np.max( list( args[0] ) )
-  else:
-    return np.max(args)
-
-
-
-
+  vals = list( args[0] ) if len(args)==1 else args
+  return None if len(vals)==0 else np.max(vals)
 
 # Format a chunk of text to be non-math LaTeX. 
 def notex(x):
@@ -196,7 +180,7 @@ class plotwindow:
     inchheight = tileheight*inchwidth/tilewidth
     # Create the window. Tell it that we want the subplot area to go
     # all the way to the edges, then break that area up into tiles. 
-    fig = plt.figure(figsize=(inchwidth, inchheight), facecolor='white')
+    fig = plt.figure(figsize=(inchwidth, inchheight), facecolor='w')
     fig.canvas.set_window_title('CPL Plotter')
     tiles = gridspec.GridSpec(tileheight, tilewidth)
     plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
@@ -337,40 +321,29 @@ class plotwindow:
   # --------------------------------------------- Find Extrema of Cells
   # -------------------------------------------------------------------
 
-
   def fmt(self, z):
-    return '$' + str( int(100*z) ) + '\\%$'
-
+    return '$' + str( int(z) ) + '$'
 
   # This is a short term solution. 
 
   def colorbar(self):
-
     global _ncolors_
-
     cmap = _cmap_( _ncolors_ )
-
     levels = np.linspace(0, self.zmax(), _ncolors_ + 1 )
-
+    ticks = 0.5*( levels[1:] + levels[:-1] )
     norm = BoundaryNorm(levels, cmap.N)
-
     ColorbarBase( self.fax, 
                   boundaries=levels,
-#                  ticks=colorParams['ticks'], 
-#                  norm=colorParams['norm'],
+                  ticks=ticks, 
+                  norm=norm,
                   orientation='horizontal',
                   cmap=cmap )
-#      cax.set_yticklabels( [ self.fmt(t) for t in colorParams['ticks'] ] )
-
+    self.fax.set_xticklabels( [ self.fmt(t) for t in ticks ] )
     return {'cmap':cmap, 'levels':levels, 'norm':norm}
-
-
-
 
   # -------------------------------------------------------------------
   # ---------------------------------------------------- Nuke Old Plots
   # -------------------------------------------------------------------
-
 
   def clear(self):
     return plt.close('all')
@@ -394,7 +367,6 @@ class plotwindow:
 
     [ cell.draw(colorparams) for cell in self.cells.flatten() ]
 
-
     # If the flag -i was given, save the output as an image.
     if '-i' in argv and isinstance(filename, str):
       # Make sure there's a directory to put the output in. 
@@ -414,11 +386,6 @@ class plotwindow:
 # #####################################################################
 # ########################################################### Plot Cell
 # #####################################################################
-
-
-
-
-
 
 class plotcell:
 
@@ -557,81 +524,6 @@ class plotcell:
     self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
     '''
     return
-
-
-
-
-# #############################################################################
-# ###################################################### LaTeX Helper Functions
-# #############################################################################
-
-def notex(x):
-  if '\n' in x:
-    return '$\n$'.join( notex(y) for y in x.split('\n') )
-  else:
-    return '\\operatorname{' + x.replace(' ', '\\;') + '}'
-
-def tex_old(x):
-  # Format frequencies nicely. 
-  if isinstance(x, float):
-    return notex(format(1e3*x, '.0f') + 'mHz ')
-  # Check the input against our dictionary of LaTeX strings. 
-  texdict = {
-             # Spell out what each model means. 
-             1:notex('Active Day'),
-             2:notex('Quiet Day'),
-             3:notex('Active Night'),
-             4:notex('Quiet Night'),
-             # Electric and magnetic field components. 
-             'Bf':'B_\\phi', 
-             'Bq':'B_\\theta', 
-             'Bx':'B_x', 
-             'By':'B_y', 
-             'Bz':'B_z', 
-             'Ex':'E_x', 
-             'Ey':'E_y', 
-             'Ez':'E_z', 
-             'L3S':'L^3\\widetilde{S}', 
-             'S':'\\widetilde{S}', 
-             'EB':'\\widetilde{E}\\widetilde{B}^*', 
-             'EBp':'-\\widetilde{E}_y\\widetilde{B}^*_x', 
-             'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y', 
-             'SpFFT':'-\\frac{L^3}{\\mu_0}\\widetilde{E}_y\\widetilde{B}^*_x', 
-             'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y', 
-             'BBp':'\\widetilde{B}_z/\\widetilde{B}_x', 
-             'BBt':'\\widetilde{B}_z/\\widetilde{B}_y', 
-             'ImS':'|\\mathbb{I}\\mathrm{m}\\widetilde{S}|', 
-             # Units. 
-             'mHz':notex('mHz'),
-             'mV/m':notex('\\frac{mV}{m}'),
-             'mW/m^2':notex('\\frac{mW}{m^2}'),
-             # Field Modifiers. 
-             'imag':'\\mathbb{I}\\mathrm{m}',
-             'real':'\\mathbb{R}\\mathrm{e}',
-             # Axis labels. 
-             'alt':notex('Altitude (km)'), 
-             'B':notex('Magnetic Field (nT)'), 
-             'comp':'B_z / B_x', 
-             'f':notex('Frequency (mHz)'), 
-             'L':notex('L'), 
-             'L0':notex('L'), 
-             'lat':notex('Latitude'), 
-             'lat0':notex('Latitude'), 
-             't':notex('Time (s)'), 
-             'logU':notex('Log') + 'U' + notex(' (\\frac{GJ}{rad})'), 
-             'logS':notex('Log') + '\\widetilde{S}' + notex(' (\\frac{mW}{m^2})'), 
-             'X':notex('X (R_E)'), 
-             'Z':notex('Z (R_E)')
-            }
-  return '?' if x not in texdict else texdict[x]
-
-
-savepath = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
-
-
-
-
-
 
 
 
@@ -1350,49 +1242,6 @@ class plotColors(dict):
     return cmap, norm
 
   # ---------------------------------------------------------------------------
-  # ----------------------------------------------------------------- Color Map
-  # ---------------------------------------------------------------------------
-
-  # A color map is really just a handful of RGB codes defined on the unit
-  # interval. To show up nicely, we need to renormalize that unit interval to
-  # match the normalization of our ticks and color levels. 
-  def getCmap(self):
-    # Figure out the unit interval renormalization to use. 
-    if self.colorbar in ('lg', 'log', 'pos', 'pct'):
-      # Kinda kludgey. See setColorbar for explanation. 
-      return plt.get_cmap(None)
-    elif self.colorbar=='sym':
-      norm = self.symNorm
-    elif self.colorbar=='phase':
-      # The physics machines at the U use an old version of Matplotlib. 
-      # Cubehelix was added in 1.5. It can also be obtained here: 
-      # https://github.com/jradavenport/cubehelix/blob/master/cubehelix.py
-      return plt.get_cmap(None)
-    else:
-      norm = self.linNorm
-    # Get a fine sampling of the color map on the unit interval. 
-    N = 1000
-    unitInterval = [ i/(N - 1.) for i in range(N) ]
-    cmap = plt.get_cmap('seismic')
-    rgb = [ cmap(u) for u in unitInterval ]
-    # Renormalize the unit interval. Make sure we get the end points right. 
-    newInterval = [ self.linMron( norm(u) ) for u in unitInterval ]
-    newInterval[0], newInterval[-1] = 0., 1.
-    # The color dict contains three channels. Each of them is a list of tuples,
-    # (u, rgbLeft, rgbRight). Between u values, colors are interpolated
-    # linearly. Approaching u from the right, the color should approach
-    # rgbRight, and vice versa. Since our color map is smooth and
-    # finely-resolved, we don't bother to distinguish.  
-    red = [ (newInterval[i], rgb[i][0], rgb[i][0]) for i in range(N) ]
-    grn = [ (newInterval[i], rgb[i][1], rgb[i][1]) for i in range(N) ]
-    blu = [ (newInterval[i], rgb[i][2], rgb[i][2]) for i in range(N) ]
-    # Return a LinearSegmentedColormap built from the color dictionary. We use
-    # TONS of samples because the symmetric log normalization devotes very
-    # little of the unit interval to zero... but that it the most important bin
-    # to have sharply defined. 
-    return LSC('myMap', {'red':red, 'green':grn, 'blue':blu}, 1000000)
-
-  # ---------------------------------------------------------------------------
   # ------------------------------------------------------------- Set Color Bar
   # ---------------------------------------------------------------------------
 
@@ -1521,13 +1370,11 @@ class plotColors(dict):
     # Otherwise, just keep the power of ten. 
     return '$ 10^{' + format(np.log10(x), '.0f') + '}' + self.unit + '$'
 
-
   def pctFormatter(self, x):
     if x == int(x):
       return '$' + str( int(x) ) + '\\%$'
     else:
       return '$' + str(x) + '\\%$'
-
 
   def lgFormatter(self, x):
     # Zero is always zero. 
@@ -1538,8 +1385,6 @@ class plotColors(dict):
       return ''
     # Otherwise, just keep the power of ten. 
     return '$ 2^{' + format(np.log2(x), '.0f') + '}' + self.unit + '$'
-
-
 
   def symFormatter(self, x):
     # Zero is always zero. 

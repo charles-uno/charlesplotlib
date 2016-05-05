@@ -43,6 +43,33 @@ import cubehelix
 # #################################################### Helper Functions
 # #####################################################################
 
+def dslice(d, keys):
+  return dict( (key, val) for key, val in d.items() if key in keys )
+
+
+# Combine several dictionaries, whether listed as arguments or as the
+# entries in a list or generator. 
+def dsum(*args):
+  dlist = list( args[0] ) if len(args)==1 else args
+  return dict( sum( [ d.items() for d in dlist ], [] ) )
+
+
+
+
+
+
+
+# Safely get the maximum of a possibly-empty list or iterator. 
+def nax(*args):
+  if len(args)==1:
+    return np.max( list( args[0] ) )
+  else:
+    return np.max(args)
+
+
+
+
+
 # Format a chunk of text to be non-math LaTeX. 
 def notex(x):
   if '\n' in x:
@@ -68,34 +95,29 @@ def tex(x):
 def znt(x, width=0):
   return str( int(x) ).zfill(width)
 
-
-
 # #####################################################################
 # ########################################################## Color Maps
 # #####################################################################
 
-# Linear color map, with white at the bottom and black at the top. 
-def cmap_linear(ncolors=1024):
-  ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
-  return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
-
-# Diverging color map, with white in the middle and off-black at the
-# positive and negative extremes. 
-def cmap_diverging(ncolors=1024):
-  u = np.linspace(0., 1., 1024)
-  bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
-  top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
-  ch = lsc.from_list( 'ch_div', np.vstack( (bot, top) ) )
-  return ListedColormap( ch( np.linspace(0.03, 0.97, ncolors) ) )
+# There are two color maps. One goes from white to black, through
+# blues and reds. The other is diverging, with white in the middle and
+# dark cool/warm colors at the low/high extremes. 
+def _cmap_(ncolors=1024, diverging=False):
+  if diverging:
+    u = np.linspace(0., 1., 1024)
+    bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
+    top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
+    ch = lsc.from_list( 'ch_div', np.vstack( (bot, top) ) )
+    return ListedColormap( ch( np.linspace(0.03, 0.97, ncolors) ) )
+  else:
+    ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
+    return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
 
 # #####################################################################
 # ################################################### Global Parameters
 # #####################################################################
 
-
-_cmap_ = cmap_linear(9)
-
-
+_ncolors_ = 9
 
 # For talks, all font sizes will be scaled up. 
 _fontscale_ = 1.
@@ -268,6 +290,19 @@ class plotwindow:
     return [ c.bar(*args, **kargs) for c in self.cells.flatten() ]
 
   # -------------------------------------------------------------------
+  # ------------------------------------------------- Find Cell Extrema
+  # -------------------------------------------------------------------
+
+  def xmax(self):
+    return max( cell.xmax() for cell in self.cells.flatten() )
+
+  def ymax(self):
+    return max( cell.ymax() for cell in self.cells.flatten() )
+
+  def zmax(self):
+    return max( cell.zmax() for cell in self.cells.flatten() )
+
+  # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters
   # -------------------------------------------------------------------
 
@@ -298,10 +333,6 @@ class plotwindow:
 
     return
 
-
-
-
-
   # -------------------------------------------------------------------
   # --------------------------------------------- Find Extrema of Cells
   # -------------------------------------------------------------------
@@ -315,17 +346,23 @@ class plotwindow:
 
   def colorbar(self):
 
-    global _cmap_
+    global _ncolors_
+
+    cmap = _cmap_( _ncolors_ )
+
+    levels = np.linspace(0, self.zmax(), _ncolors_ + 1 )
+
+    norm = BoundaryNorm(levels, cmap.N)
 
     ColorbarBase( self.fax, 
-#                  boundaries=colorParams['levels'],
+                  boundaries=levels,
 #                  ticks=colorParams['ticks'], 
 #                  norm=colorParams['norm'],
                   orientation='horizontal',
-                  cmap=_cmap_ )
+                  cmap=cmap )
 #      cax.set_yticklabels( [ self.fmt(t) for t in colorParams['ticks'] ] )
 
-    return
+    return {'cmap':cmap, 'levels':levels, 'norm':norm}
 
 
 
@@ -346,20 +383,16 @@ class plotwindow:
     global _savefmt_, _savepath_
 
 
-
-
-
     # Kludged this together so as can do sanity checks. 
 
-    self.colorbar()
-
+    colorparams = self.colorbar()
 
     # Only the leftmost cells get y axis labels and tick labels. 
     self[:, 1:].style(yticklabels=(), ylabel='')
     # Only the bottom cells get x axis labela and tick labels. 
     self[:-1, :].style(xticklabels=(), xlabel='')
 
-    [ c.draw() for c in self.cells.flatten() ]
+    [ cell.draw(colorparams) for cell in self.cells.flatten() ]
 
 
     # If the flag -i was given, save the output as an image.
@@ -381,6 +414,9 @@ class plotwindow:
 # #####################################################################
 # ########################################################### Plot Cell
 # #####################################################################
+
+
+
 
 
 
@@ -436,6 +472,34 @@ class plotcell:
     return
 
   # -------------------------------------------------------------------
+  # ------------------------------------------------- Find Cell Extrema
+  # -------------------------------------------------------------------
+
+  def xmax(self):
+    bmax, cmax, lmax, mmax = None, None, None, None
+    if self.contours is not None:
+      cmax = nax( x for x, y, z, args, kargs in self.contours )
+    if self.meshes is not None:
+      mmax = nax( x for x, y, z, args, kargs in self.meshes )
+    return max(bmax, cmax, lmax, mmax)
+
+  def ymax(self):
+    bmax, cmax, lmax, mmax = None, None, None, None
+    if self.contours is not None:
+      cmax = nax( y for x, y, z, args, kargs in self.contours )
+    if self.meshes is not None:
+      mmax = nax( y for x, y, z, args, kargs in self.meshes )
+    return max(bmax, cmax, lmax, mmax)
+
+  def zmax(self):
+    bmax, cmax, lmax, mmax = None, None, None, None
+    if self.contours is not None:
+      cmax = nax( z for x, y, z, args, kargs in self.contours )
+    if self.meshes is not None:
+      mmax = nax( z for x, y, z, args, kargs in self.meshes )
+    return max(bmax, cmax, lmax, mmax)
+
+  # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters
   # -------------------------------------------------------------------
 
@@ -460,20 +524,22 @@ class plotcell:
   # --------------------------------------------------------- Draw Data
   # -------------------------------------------------------------------
 
-  def draw(self):
-
-    global _cmap_
+  def draw(self, colorparams):
 
     # TODO: Handle limits, ticks, tick labels for x, y, and z. 
+
+    ckeys, mkeys = ('cmap', 'levels'), ('cmap', 'norm')
 
     # Handle contours first, if any. 
     if self.contours is not None:
       for x, y, z, args, kargs in self.contours:
-        self.ax.contourf(x, y, z, cmap=_cmap_, *args, **kargs)
+        ckargs = dsum( kargs, dslice(colorparams, ckeys) )
+        self.ax.contourf(x, y, z, *args, **ckargs)
     # Handle the color mesh, if any. 
     if self.meshes is not None:
       for x, y, z, args, kargs in self.meshes:
-        self.ax.pcolormesh(x, y, z, cmap=_cmap_, *args, **kargs)
+        mkargs = dsum( kargs, dslice(colorparams, mkeys) )
+        self.ax.pcolormesh(x, y, z, *args, **mkargs)
     # Draw the bar plots, if any. 
     if self.bars is not None:
       for x, y, args, kargs in self.bars:
@@ -561,6 +627,38 @@ def tex_old(x):
 
 
 savepath = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

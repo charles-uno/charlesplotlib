@@ -32,6 +32,11 @@ def main():
 # ################################################################ Contour Plot
 # #############################################################################
 
+def flip():
+  return np.random.randint(2) == 0
+
+
+
 def contour():
 
   pw = cpl.plotwindow(2, 2, slope=1.)
@@ -41,21 +46,20 @@ def contour():
   x = np.linspace(0, 10, n)
   y = np.linspace(0, 10, n)
 
-  for i in range(4):
-    z = np.random.rand(n, n)
+  for i in range(3):
+    scale = np.random.randint(100)
+    print 'scale', i, ' = ', scale
+    z = scale*np.random.rand(n, n)
     pw[i].contour(x, y, z)
 
+  scale = np.random.randint(100)
+  print 'scale', 3, ' = ', scale
+  z = scale*np.random.rand(n, n)
+  pw[3].mesh(x, y, z)
+
   clabs = ('column 0', 'column 1')
-
   rlabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
-
   pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
-
-
-#  x = np.linspace(0, 10, n+1)
-#  y = np.linspace(0, 10, n+1)
-#  z = np.random.rand(n, n)
-#  pw[3].mesh(x, y, z)
 
   pw.draw()
 

@@ -52,6 +52,8 @@ def contour():
     z = scale*np.random.rand(n, n)
     pw[i].contour(x, y, z)
 
+  x = np.linspace(0, 10, n+1)
+  y = np.linspace(0, 10, n+1)
   scale = np.random.randint(100)
   print 'scale', 3, ' = ', scale
   z = scale*np.random.rand(n, n)

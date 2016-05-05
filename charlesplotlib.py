@@ -27,7 +27,7 @@ from matplotlib import gridspec, rc
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import LinearSegmentedColormap as lsc
 from matplotlib.colors import BoundaryNorm, ListedColormap
-from matplotlib.colors import LogNorm, Normalize
+from matplotlib.colors import LogNorm, Normalize, SymLogNorm
 from matplotlib.patches import Wedge
 import matplotlib.pyplot as plt
 import numpy as np
@@ -309,7 +309,6 @@ class plotwindow:
       elif key=='title':
         targs['fontsize'] = str( 1.2*_fontsize_ )
         self.tax.text(s=tex(val), **targs)
-
 
       # Anything else gets forwarded to each cell. 
       else:

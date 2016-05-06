@@ -33,35 +33,36 @@ def main():
 # #############################################################################
 
 def flip():
-  return np.random.randint(2) == 0
+  return np.random.randint(2)==0
 
 
 
 def contour():
 
-  pw = cpl.plotwindow(2, 2, slope=1.)
+  pw = cpl.plotwindow(1, 2, slope=1.)
 
   n = 5
 
   x = np.linspace(0, 10, n)
   y = np.linspace(0, 10, n)
-
-  for i in range(3):
-    scale = np.random.randint(100)
-    print 'scale', i, ' = ', scale
+  scale = np.random.randint(100)
+  if flip():
     z = scale*np.random.rand(n, n)
-    pw[i].contour(x, y, z)
+  else:
+    z = 2*scale*np.random.rand(n, n) - scale
+  pw[0].contour(x, y, z)
 
   x = np.linspace(0, 10, n+1)
   y = np.linspace(0, 10, n+1)
   scale = np.random.randint(100)
-  print 'scale', 3, ' = ', scale
-  z = scale*np.random.rand(n, n)
-  pw[3].mesh(x, y, z)
+  if flip():
+    z = scale*np.random.rand(n, n)
+  else:
+    z = 2*scale*np.random.rand(n, n) - scale
+  pw[1].mesh(x, y, z)
 
-  clabs = ('column 0', 'column 1')
-  rlabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
-  pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
+  clabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
+  pw.style(clabs=clabs, title='ABCD sample title')
 
   pw.draw()
 

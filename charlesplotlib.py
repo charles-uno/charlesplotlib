@@ -54,6 +54,13 @@ def nax(*args):
   vals = list( args[0] ) if len(args)==1 else args
   return None if len(vals)==0 else np.max(vals)
 
+# Safely get the minimum of a possibly-empty list or iterator. 
+def nin(*args):
+  vals = list( args[0] ) if len(args)==1 else args
+  # We have to be careful -- None counts as smaller than any number. 
+  nums = [ n for n in np.array(vals).flatten() if n is not None ]
+  return None if len(nums)==0 else np.min(nums)
+
 # Format a chunk of text to be non-math LaTeX. 
 def notex(x):
   if '\n' in x:
@@ -277,14 +284,11 @@ class plotwindow:
   # ------------------------------------------------- Find Cell Extrema
   # -------------------------------------------------------------------
 
-  def xmax(self):
-    return max( cell.xmax() for cell in self.cells.flatten() )
+  def imax(self, i):
+    return nax( cell.imax(i) for cell in self.cells.flatten() )
 
-  def ymax(self):
-    return max( cell.ymax() for cell in self.cells.flatten() )
-
-  def zmax(self):
-    return max( cell.zmax() for cell in self.cells.flatten() )
+  def imin(self, i):
+    return nin( cell.imin(i) for cell in self.cells.flatten() )
 
   # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters
@@ -300,11 +304,11 @@ class plotwindow:
 
       if key=='clabs':
         targs['fontsize'] = str( int( _fontsize_ ) )
-        [ l.text(s=tex(v), **targs) for v, l in zip(val, self.laxes) ]
+        [ h.text(s=tex(v), **targs) for v, h in zip(val, self.haxes) ]
 
       elif key=='rlabs':
         targs['fontsize'] = str( int( _fontsize_ ) )
-        [ h.text(s=tex(v), **targs) for v, h in zip(val, self.haxes) ]
+        [ l.text(s=tex(v), **targs) for v, l in zip(val, self.laxes) ]
 
       elif key=='title':
         targs['fontsize'] = str( 1.2*_fontsize_ )
@@ -327,8 +331,21 @@ class plotwindow:
 
   def colorbar(self):
     global _ncolors_
-    cmap = _cmap_( _ncolors_ )
-    levels = np.linspace(0, self.zmax(), _ncolors_ + 1 )
+
+    # For the moment, we neglect the possibility of zmax < 0. 
+
+    zmin, zmax = self.imin(2), self.imax(2)
+
+    # If the values are all positive, to within a tolerance, we use the
+    # increasing color map. Otherwise, we use the diverging color map. 
+    if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
+      levels = np.linspace(0, zmax, _ncolors_ + 1 )
+      cmap = _cmap_( _ncolors_ )
+    else:
+      zabs = np.max( np.abs( (zmin, zmax) ) )
+      levels = np.linspace(-zabs, zabs, _ncolors_ + 1 )
+      cmap = _cmap_( _ncolors_, diverging=True )
+
     ticks = 0.5*( levels[1:] + levels[:-1] )
     norm = BoundaryNorm(levels, cmap.N)
     ColorbarBase( self.fax, 
@@ -353,7 +370,6 @@ class plotwindow:
 
   def draw(self, filename=None):
     global _savefmt_, _savepath_
-
 
     # Kludged this together so as can do sanity checks. 
 
@@ -441,29 +457,29 @@ class plotcell:
   # ------------------------------------------------- Find Cell Extrema
   # -------------------------------------------------------------------
 
-  def xmax(self):
-    bmax, cmax, lmax, mmax = None, None, None, None
+  def imax(self, i):
+    b, c, l, m = None, None, None, None
+    if self.lines is not None:
+      b = nax( (x, y, None)[i] for x, y, args, kargs in self.bars )
     if self.contours is not None:
-      cmax = nax( x for x, y, z, args, kargs in self.contours )
+      c = nax( (x, y, z)[i] for x, y, z, args, kargs in self.contours )
     if self.meshes is not None:
-      mmax = nax( x for x, y, z, args, kargs in self.meshes )
-    return max(bmax, cmax, lmax, mmax)
+      m = nax( (x, y, z)[i] for x, y, z, args, kargs in self.meshes )
+    if self.lines is not None:
+      l = nax( (x, y, None)[i] for x, y, args, kargs in self.lines )
+    return nax(b, c, l, m)
 
-  def ymax(self):
-    bmax, cmax, lmax, mmax = None, None, None, None
+  def imin(self, i):
+    b, c, l, m = None, None, None, None
+    if self.lines is not None:
+      b = nin( (x, y, None)[i] for x, y, args, kargs in self.bars )
     if self.contours is not None:
-      cmax = nax( y for x, y, z, args, kargs in self.contours )
+      c = nin( (x, y, z)[i] for x, y, z, args, kargs in self.contours )
     if self.meshes is not None:
-      mmax = nax( y for x, y, z, args, kargs in self.meshes )
-    return max(bmax, cmax, lmax, mmax)
-
-  def zmax(self):
-    bmax, cmax, lmax, mmax = None, None, None, None
-    if self.contours is not None:
-      cmax = nax( z for x, y, z, args, kargs in self.contours )
-    if self.meshes is not None:
-      mmax = nax( z for x, y, z, args, kargs in self.meshes )
-    return max(bmax, cmax, lmax, mmax)
+      m = nin( (x, y, z)[i] for x, y, z, args, kargs in self.meshes )
+    if self.lines is not None:
+      l = nin( (x, y, None)[i] for x, y, args, kargs in self.lines )
+    return nin(b, c, l, m)
 
   # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters

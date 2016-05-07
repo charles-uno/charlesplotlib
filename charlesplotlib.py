@@ -14,7 +14,7 @@
 # create plots which look nice in a dissertation or talk. 
 
 # #####################################################################
-# ############################################# Import Python Libraries
+# ################################################# Import Dependencies
 # #####################################################################
 
 import cubehelix
@@ -120,6 +120,58 @@ _savefmt_ = 'pdf'
 # If we save any plots, it will be to a timestamped directory. 
 _savepath_ = os.environ['HOME'] + '/Desktop/plots/' + now()
 
+# #####################################################################
+# ######################################################### Axis Params
+# #####################################################################
+
+class axparams(dict):
+
+  def __init__(self, xlims, ylims, zlims, cax):
+    global _ncolors_
+
+    xparams = self.foo('x', *xlims)
+
+    yparams = self.foo('y', *ylims)
+
+    zmin, zmax = zlims
+
+    # If the z values are all positive, to within a tolerance, we use
+    # the sequential colormap. 
+    if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
+      levels = np.linspace(0, zmax, _ncolors_ + 1 )
+      cmap = _cmap_( _ncolors_ )
+    # Otherwise, we use the diverging colormap. 
+    else:
+      zabs = np.max( np.abs( (zmin, zmax) ) )
+      levels = np.linspace(-zabs, zabs, _ncolors_ + 1 )
+      cmap = _cmap_( _ncolors_, diverging=True )
+    # Ticks go in the center of each color level. 
+    zticks = 0.5*( levels[1:] + levels[:-1] )
+    norm = BoundaryNorm(levels, cmap.N)
+    ColorbarBase( cax, cmap=cmap, boundaries=levels, ticks=zticks, 
+                  norm=norm, orientation='horizontal' )
+
+    cax.set_xticklabels( [ self.fmt(t) for t in zticks ] )
+
+    zparams = {'cmap':cmap, 'levels':levels, 'norm':norm}
+
+    return dict.__init__( self, dsum(xparams, yparams, zparams) )
+
+  def foo(self, name, imin, imax):
+
+    ticks = np.linspace(imin, imax, 5)
+
+    ticklabels = [ self.fmt(t) for t in ticks ]
+
+    lims = (imin, imax)
+
+    return { name + 'ticks':ticks,
+             name + 'ticklabels':ticklabels,
+             name + 'lims':lims }
+
+  def fmt(self, z):
+    return '$' + str( int(z) ) + '$'
+    
 # #####################################################################
 # ######################################################### Plot Window
 # #####################################################################
@@ -321,43 +373,6 @@ class plotwindow:
     return
 
   # -------------------------------------------------------------------
-  # --------------------------------------------- Find Extrema of Cells
-  # -------------------------------------------------------------------
-
-  def fmt(self, z):
-    return '$' + str( int(z) ) + '$'
-
-  # This is a short term solution. 
-
-  def colorbar(self):
-    global _ncolors_
-
-    # For the moment, we neglect the possibility of zmax < 0. 
-
-    zmin, zmax = self.imin(2), self.imax(2)
-
-    # If the values are all positive, to within a tolerance, we use the
-    # increasing color map. Otherwise, we use the diverging color map. 
-    if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
-      levels = np.linspace(0, zmax, _ncolors_ + 1 )
-      cmap = _cmap_( _ncolors_ )
-    else:
-      zabs = np.max( np.abs( (zmin, zmax) ) )
-      levels = np.linspace(-zabs, zabs, _ncolors_ + 1 )
-      cmap = _cmap_( _ncolors_, diverging=True )
-
-    ticks = 0.5*( levels[1:] + levels[:-1] )
-    norm = BoundaryNorm(levels, cmap.N)
-    ColorbarBase( self.fax, 
-                  boundaries=levels,
-                  ticks=ticks, 
-                  norm=norm,
-                  orientation='horizontal',
-                  cmap=cmap )
-    self.fax.set_xticklabels( [ self.fmt(t) for t in ticks ] )
-    return {'cmap':cmap, 'levels':levels, 'norm':norm}
-
-  # -------------------------------------------------------------------
   # ---------------------------------------------------- Nuke Old Plots
   # -------------------------------------------------------------------
 
@@ -371,16 +386,14 @@ class plotwindow:
   def draw(self, filename=None):
     global _savefmt_, _savepath_
 
-    # Kludged this together so as can do sanity checks. 
-
-    colorparams = self.colorbar()
+    axlims = [ ( self.imin(i), self.imax(i) ) for i in range(3) ]
+    kwargs = axparams(*axlims, cax=self.fax)
+    [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
 
     # Only the leftmost cells get y axis labels and tick labels. 
     self[:, 1:].style(yticklabels=(), ylabel='')
     # Only the bottom cells get x axis labela and tick labels. 
     self[:-1, :].style(xticklabels=(), xlabel='')
-
-    [ cell.draw(colorparams) for cell in self.cells.flatten() ]
 
     # If the flag -i was given, save the output as an image.
     if '-i' in argv and isinstance(filename, str):
@@ -490,13 +503,29 @@ class plotcell:
     for key, val in kargs.items():
 
       if key=='xlabel':
-        self.ax.set_xlabel('' if not val else '$' + val + '$')
+        self.ax.set_xlabel( tex(val) )
+
+      elif key=='xlims':
+        self.ax.set_xlim(val)
+
       elif key=='xticklabels':
         self.ax.set_xticklabels(val)
+
+      elif key=='xticks':
+        self.ax.set_xticks(val)
+
       elif key=='ylabel':
-        self.ax.set_ylabel('' if not val else '$' + val + '$')
+        self.ax.set_ylabel( tex(val) )
+
+      elif key=='ylims':
+        self.ax.set_ylim(val)
+
       elif key=='yticklabels':
         self.ax.set_yticklabels(val)
+
+      elif key=='yticks':
+        self.ax.set_yticks(val)
+
       else:
         print 'WARNING -- unrecognized style parameter ' + key
 
@@ -506,21 +535,26 @@ class plotcell:
   # --------------------------------------------------------- Draw Data
   # -------------------------------------------------------------------
 
-  def draw(self, colorparams):
+  def draw(self, **kwargs):
 
     # TODO: Handle limits, ticks, tick labels for x, y, and z. 
 
     ckeys, mkeys = ('cmap', 'levels'), ('cmap', 'norm')
 
+    axkeys = ( 'xlims', 'xticks', 'xticklabels',
+               'ylims', 'yticks', 'yticklabels' )
+
+    self.style( **dslice(kwargs, axkeys) )
+
     # Handle contours first, if any. 
     if self.contours is not None:
       for x, y, z, args, kargs in self.contours:
-        ckargs = dsum( kargs, dslice(colorparams, ckeys) )
+        ckargs = dsum( kargs, dslice(kwargs, ckeys) )
         self.ax.contourf(x, y, z, *args, **ckargs)
     # Handle the color mesh, if any. 
     if self.meshes is not None:
       for x, y, z, args, kargs in self.meshes:
-        mkargs = dsum( kargs, dslice(colorparams, mkeys) )
+        mkargs = dsum( kargs, dslice(kwargs, mkeys) )
         self.ax.pcolormesh(x, y, z, *args, **mkargs)
     # Draw the bar plots, if any. 
     if self.bars is not None:

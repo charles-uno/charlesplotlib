@@ -43,7 +43,7 @@ def contour():
 
   n = 5
 
-  x = np.linspace(0, 10, n)
+  x = np.linspace(3, 8, n)
   y = np.linspace(0, 10, n)
   scale = np.random.randint(100)
   if flip():
@@ -53,7 +53,7 @@ def contour():
   pw[0].contour(x, y, z)
 
   x = np.linspace(0, 10, n+1)
-  y = np.linspace(0, 10, n+1)
+  y = np.linspace(2, 7, n+1)
   scale = np.random.randint(100)
   if flip():
     z = scale*np.random.rand(n, n)

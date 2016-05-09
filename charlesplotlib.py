@@ -99,7 +99,7 @@ def _cmap_(ncolors=1024, diverging=False):
     bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
     top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
     ch = lsc.from_list( 'ch_div', np.vstack( (bot, top) ) )
-    return ListedColormap( ch( np.linspace(0.03, 0.97, ncolors) ) )
+    return ListedColormap( ch( np.linspace(0.05, 0.95, ncolors) ) )
   else:
     ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
     return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
@@ -108,7 +108,7 @@ def _cmap_(ncolors=1024, diverging=False):
 # ################################################### Global Parameters
 # #####################################################################
 
-_ncolors_ = 9
+_ncolors_ = 7
 
 # For talks, all font sizes will be scaled up. 
 _fontscale_ = 1.
@@ -148,7 +148,7 @@ class axparams(dict):
     # Ticks go in the center of each color level. 
     zticks = 0.5*( levels[1:] + levels[:-1] )
     norm = BoundaryNorm(levels, cmap.N)
-    ColorbarBase( cax, cmap=cmap, boundaries=levels, ticks=zticks, 
+    ColorbarBase( cax, cmap=cmap, ticks=zticks, 
                   norm=norm, orientation='horizontal' )
 
     cax.set_xticklabels( [ self.fmt(t) for t in zticks ] )

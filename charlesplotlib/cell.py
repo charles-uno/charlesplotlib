@@ -39,20 +39,26 @@ class plotcell(object):
     """Keep track of all the data to be shown by a single subplot."""
     # Keep lists of the data that's to be shown on this subplot.
     bars, contours, lines, meshes = None, None, None, None
-
-    xlabel = None
-    xmin, xmax = None, None
-    xticks, xticklabels = None, None
-    xlog = None
-
-    ylabel = None
-    ymin, ymax = None, None
-    yticks, yticklabels = None, None
-    ylog = None
-
-    cmap = None
-    levels = None
-    norm = None
+    # Axis bounds. These are set by the plot window after all the data
+    # is entered. Typically, all cells share the same bounds. 
+    xmin, xmax, ymin, ymax = None, None, None, None
+    # Axes can be log or linear. For the moment, at least, this is
+    # specified by the user. It's hard to guess if an axis is supposed
+    # to be log scaled! 
+    xlog, ylog = False, False
+    # Tick locations. These are set by the plot window -- after it asks
+    # whether each axis is linear or log scaled.
+    xticks, yticks = None, None
+    # Tick labels are also set by the window. Only edge cells get them,
+    # so that the grid can be packed a bit tighter. 
+    xticklabels, yticklabels = None, None
+    # Axis labels. These are set by the user -- usually at the window
+    # level, which automatically passes them to only the edge cells.
+    xlabel, ylabel = None, None
+    # All cells share a common color bar. To that end, color information
+    # is passed to each cell by the plot window (after it figures out
+    # the appropriate scale, etc). 
+    cmap, levels, norm = None, None, None
 
     # ==================================================================
     # =================================================== Initialization
@@ -60,38 +66,64 @@ class plotcell(object):
 
     def __init__(self, ax):
         """WIP..."""
+        # For the moment, we take the axis object at initialization.
+        # This can probably be pushed back to the draw() call, though,
+        # now that calls are rearranged. 
         self.ax = ax
-        self.bars = []
-        self.contours = []
-        self.lines = []
-        self.meshes = []
+        # Fire up lists to keep track of the data to be shown on this
+        # cell. Any combination of bars, contours, lines, and meshes can
+        # coexist (although the user doesn't have control over the order
+        # in which they are drawn). 
+        self.bars, self.lines = [], []
+        self.contours, self.meshes = [], []
         return
 
     # ==================================================================
     # ========================================================= Add Data
     # ==================================================================
 
-    def bar(self, x, y, *args, **kwargs):
+    def bar(self, *args, **kwargs):
         """Store a bar plot, to plot later."""
-        return self.bars.append( (x, y, args, kwargs) )
+
+        if len(args) < 2:
+            raise ValueError('Bar plot must have at least two sequential arguments.')
+
+        # Add a dummy z value to make later comparisons easy. 
+        xyzargs = args[:2] + (None,) + args[:2]
+
+        return self.bars.append( (xyzargs, kwargs) )
 
     # ------------------------------------------------------------------
 
-    def contour(self, x, y, z, *args, **kwargs):
+    def contour(self, *args, **kwargs):
         """Store a contour plot, to plot later."""
-        return self.contours.append( (x, y, z, args, kwargs) )
+
+        if len(args) < 3:
+            raise ValueError('Contour plot must have at least three sequential arguments.')
+
+        return self.contours.append( (args, kwargs) )
 
     # ------------------------------------------------------------------
 
-    def line(self, x, y, *args, **kwargs):
+    def line(self, *args, **kwargs):
         """Store a line plot, to plot later."""
-        return self.lines.append( (x, y, args, kwargs) )
+
+        if len(args) < 2:
+            raise ValueError('Line plot must have at least two sequential arguments.')
+        # Add a dummy z value to make later comparisons easy. 
+        xyzargs = args[:2] + (None,) + args[:2]
+
+        return self.lines.append( (xyzargs, kwargs) )
 
     # ------------------------------------------------------------------
 
-    def mesh(self, x, y, z, *args, **kwargs):
+    def mesh(self, *args, **kwargs):
         """Store a mesh plot, to plot later."""
-        return self.meshes.append( (x, y, z, args, kwargs) )
+
+        if len(args) < 3:
+            raise ValueError('Mesh plot must have at least three sequential arguments.')
+
+        return self.meshes.append( (args, kwargs) )
 
     # ==================================================================
     # ====================================================== Get Extrema
@@ -101,10 +133,10 @@ class plotcell(object):
         """Get the maximum in the given dimension of all bars, contours,
         lines, and meshes this plot holds.
         """
-        bmax = helpers.nax( (x, y, None)[i] for x, y, a, k in self.bars )
-        cmax = helpers.nax( (x, y, z)[i] for x, y, z, a, k in self.contours )
-        lmax = helpers.nax( (x, y, None)[i] for x, y, a, k in self.lines )
-        mmax = helpers.nax( (x, y, z)[i] for x, y, z, a, k in self.meshes )
+        bmax = helpers.nax( args[i] for args, kwargs in self.bars )
+        cmax = helpers.nax( args[i] for args, kwargs in self.contours )
+        lmax = helpers.nax( args[i] for args, kwargs in self.lines )
+        mmax = helpers.nax( args[i] for args, kwargs in self.meshes )
         return helpers.nax(bmax, cmax, lmax, mmax)
 
     # ------------------------------------------------------------------
@@ -113,10 +145,10 @@ class plotcell(object):
         """Get the minimum in the given dimension of all bars, contours,
         lines, and meshes this plot holds.
         """
-        bmin = helpers.nin( (x, y, None)[i] for x, y, a, k in self.bars )
-        cmin = helpers.nin( (x, y, z)[i] for x, y, z, a, k in self.contours )
-        lmin = helpers.nin( (x, y, None)[i] for x, y, a, k in self.lines )
-        mmin = helpers.nin( (x, y, z)[i] for x, y, z, a, k in self.meshes )
+        bmin = helpers.nin( args[i] for args, kwargs in self.bars )
+        cmin = helpers.nin( args[i] for args, kwargs in self.contours )
+        lmin = helpers.nin( args[i] for args, kwargs in self.lines )
+        mmin = helpers.nin( args[i] for args, kwargs in self.meshes )
         return helpers.nin(bmin, cmin, lmin, mmin)
 
     # ==================================================================
@@ -127,7 +159,7 @@ class plotcell(object):
 
         for key, val in kargs.items():
 
-            print('applying', key, val)
+#            print('applying', key, val)
 
             if key == 'cmap':
                 self.cmap = val
@@ -217,11 +249,11 @@ class plotcell(object):
         self.ax.set_xlim( (self.xmin, self.xmax) )
         self.ax.set_ylim( (self.ymin, self.ymax) )
 
-        self.ax.minorticks_off()
         if self.xlog:
             self.ax.set_xscale('log')
         if self.ylog:
             self.ax.set_yscale('log')
+        self.ax.minorticks_off()
 
         self.ax.set_xticks(self.xticks)
         self.ax.set_yticks(self.yticks)
@@ -237,7 +269,7 @@ class plotcell(object):
             self.ax.set_yticklabels( () )
 
         # Handle contours first, if any. 
-        for x, y, z, args, kwargs in self.contours:
+        for args, kwargs in self.contours:
 
             # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide). 
             if 'cmap' not in kwargs:
@@ -245,10 +277,10 @@ class plotcell(object):
             if 'levels' not in kwargs:
                 kwargs['levels'] = self.levels
 
-            self.ax.contourf(x, y, z, *args, **kwargs)
+            self.ax.contourf(*args, **kwargs)
 
         # Handle the color mesh, if any. 
-        for x, y, z, args, kwargs in self.meshes:
+        for args, kwargs in self.meshes:
 
             # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide). 
             if 'cmap' not in kwargs:
@@ -256,15 +288,19 @@ class plotcell(object):
             if 'norm' not in kwargs:
                 kwargs['norm'] = self.norm
 
-            self.ax.pcolormesh(x, y, z, *args, **kwargs)
+            self.ax.pcolormesh(*args, **kwargs)
 
         # Draw the bar plots, if any. 
-        for x, y, args, kwargs in self.bars:
-            self.ax.bar(x, y, *args, **kwargs)
+        for args, kwargs in self.bars:
+            # Get rid of the dummy argument we added in bar(). 
+            xyargs = args[:2] + args[3:]
+            self.ax.bar(*xyargs, **kwargs)
 
         # Draw the lines, if any. 
-        for x, y, args, kwargs in self.lines:
-            self.ax.plot(x, y, *args, **kwargs)
+        for args, kwargs in self.lines:
+            # Get rid of the dummy argument we added in line(). 
+            xyargs = args[:2] + args[3:]
+            self.ax.plot(*xyargs, **kwargs)
 
 
 

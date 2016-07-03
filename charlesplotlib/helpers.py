@@ -8,27 +8,12 @@
 
 # WIP...
 
-import cubehelix
-import matplotlib
-import os
-# Allows use over SSH, even from a machine not running an xserver. 
-if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
-    matplotlib.use('Agg')
-from matplotlib import gridspec, rc
-from matplotlib.colorbar import ColorbarBase
-from matplotlib.colors import LinearSegmentedColormap as lsc
-from matplotlib.colors import BoundaryNorm, ListedColormap
-from matplotlib.colors import LogNorm, Normalize, SymLogNorm
-from matplotlib.patches import Wedge
-import matplotlib.pyplot as plt
+# ######################################################################
+# ############################################################## Imports
+# ######################################################################
+
 import numpy as np
-from sys import argv
 from time import localtime as lt
-from numpy.ma import masked_where
-
-
-
-
 
 # ######################################################################
 # ##################################################### Helper Functions

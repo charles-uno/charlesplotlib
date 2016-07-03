@@ -31,15 +31,11 @@ from time import localtime as lt
 from numpy.ma import masked_where
 
 from .cell import plotcell
-
 from . import helpers
-
-
 
 # ######################################################################
 # #################################################### Global Parameters
 # ######################################################################
-
 
 # TODO -- Should probably be in the window object.
 
@@ -175,12 +171,11 @@ class plotwindow:
 #    self.fax.axis('off')
         [ l.axis('off') for l in self.laxes ]
         [ h.axis('off') for h in self.haxes ]
-
         return
 
-  # -------------------------------------------------------------------
-  # ------------------------------------------------- Access Plot Cells
-  # -------------------------------------------------------------------
+    # ==================================================================
+    # ================================================ Access Plot Cells
+    # ==================================================================
 
     # The plot window itself doesn't actually handle any data. Instead, 
     # data is forwarded to cells or slices of cells using array notation.
@@ -231,9 +226,28 @@ class plotwindow:
     def imed(self, i):
         return helpers.ned( cell.imed(i) for cell in self.cells.flatten() )
 
-
     def imin(self, i):
         return helpers.nin( cell.imin(i) for cell in self.cells.flatten() )
+
+
+
+    # ==================================================================
+    # ================================================= Axis Aggregation
+    # ==================================================================
+
+    def axparams(self):
+
+
+        # The x axis can be linear with zero at the end, be linear with zero in the middle, or be a log scale. 
+        # The y axis can be linear with zero at the end, be linear with zero in the middle, or be a log scale. 
+
+        # The z axis is also allowed to use a symmetric log scale. 
+
+        pass
+
+
+
+
 
   # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters
@@ -277,11 +291,12 @@ class plotwindow:
   # -------------------------------------------------------------------
 
     def draw(self, filename=None):
-        global _savefmt_, _savepath_
+        global _savefmt, _savepath
 
-        axlims = [ ( self.imin(i), self.imax(i) ) for i in range(3) ]
+        axlims = [ ( self.imin(i), self.imed(i), self.imax(i) ) for i in range(3) ]
 
         kwargs = axparams(*axlims, cax=self.fax)
+
         [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
 
         # Only the leftmost cells get y axis labels and tick labels. 
@@ -298,7 +313,7 @@ class plotwindow:
             if '.' in name:
               out = _savepath + '/' + filename
             else:
-              out = _savepath + '/' + filename + '.' + _savefmt_
+              out = _savepath + '/' + filename + '.' + _savefmt
             print('Saving ' + out)
             return plt.savefig(out)
         # Otherwise, show the plot on the screen. 
@@ -315,56 +330,60 @@ class plotwindow:
 
 class axparams(dict):
 
-  def __init__(self, xlims, ylims, zlims, cax):
-    global _ncolors_
+    def __init__(self, xlims, ylims, zlims, cax):
+        global _ncolors
 
-    xparams = self.foo('x', *xlims)
+        xparams = self.foo('x', *xlims)
 
-    yparams = self.foo('y', *ylims)
+        yparams = self.foo('y', *ylims)
 
-    zmin, zmax = zlims
+        zmin, zmed, zmax = zlims
 
-    # If the z values are all positive, to within a tolerance, we use
-    # the sequential colormap. 
-    if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
-      levels = np.linspace(0, zmax, _ncolors + 1 )
-      cmap = seq_cmap(_ncolors)
-    # Otherwise, we use the diverging colormap. 
-    else:
-      zabs = np.max( np.abs( (zmin, zmax) ) )
-      levels = np.linspace(-zabs, zabs, _ncolors + 1)
-      cmap = sym_cmap(_ncolors)
-    # Ticks go in the center of each color level. 
-    zticks = 0.5*( levels[1:] + levels[:-1] )
-    norm = BoundaryNorm(levels, cmap.N)
-    ColorbarBase( cax, cmap=cmap, ticks=zticks, 
-                  norm=norm, orientation='horizontal' )
+        # If the z values are all positive, to within a tolerance, we use
+        # the sequential colormap. 
+        if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
+            levels = np.linspace(0, zmax, _ncolors + 1 )
+            cmap = seq_cmap(_ncolors)
+        # Otherwise, we use the diverging colormap. 
+        else:
+            zabs = np.max( np.abs( (zmin, zmax) ) )
+            levels = np.linspace(-zabs, zabs, _ncolors + 1)
+            cmap = sym_cmap(_ncolors)
+        # Ticks go in the center of each color level. 
+        zticks = 0.5*( levels[1:] + levels[:-1] )
+        norm = BoundaryNorm(levels, cmap.N)
+        ColorbarBase( cax, cmap=cmap, ticks=zticks, 
+                      norm=norm, orientation='horizontal' )
 
-    cax.set_xticklabels( [ self.fmt(t) for t in zticks ] )
+        cax.set_xticklabels( [ self.fmt(t) for t in zticks ] )
 
-    zparams = {'cmap':cmap, 'levels':levels, 'norm':norm}
+        zparams = {'cmap':cmap, 'levels':levels, 'norm':norm}
 
-    return dict.__init__( self, helpers.dsum(xparams, yparams, zparams) )
-
-
+        return dict.__init__( self, helpers.dsum(xparams, yparams, zparams) )
 
 
 
 
-  def foo(self, name, imin, imax):
+    def foo(self, name, imin, imed, imax):
 
-    ticks = np.linspace(imin, imax, 5)
+        # Axes should either have zero in the middle or at the end.
 
-    ticklabels = [ self.fmt(t) for t in ticks ]
+        ticks = np.linspace(imin, imax, 5)
 
-    lims = (imin, imax)
+        ticklabels = [ self.fmt(t) for t in ticks ]
 
-    return { name + 'ticks':ticks,
-             name + 'ticklabels':ticklabels,
-             name + 'lims':lims }
+        lims = (imin, imax)
 
-  def fmt(self, z):
-    return '$' + str( int(z) ) + '$'
+        return { name + 'ticks':ticks,
+                 name + 'ticklabels':ticklabels,
+                 name + 'lims':lims }
+
+
+
+
+
+    def fmt(self, z):
+        return '$' + str( int(z) ) + '$'
 
 
 

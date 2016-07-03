@@ -36,11 +36,11 @@ def flip(n=2):
 
 
 
-def lims():
-    maybe_min = np.random.randint(10)
-    if flip(4):
-        maybe_min *= -1
-    maybe_max = np.random.randint(10)
+def lims(scalemax):
+    maybe_min = np.random.randint(scalemax)
+#    if flip(4):
+#        maybe_min *= -1
+    maybe_max = np.random.randint(scalemax)
     return sorted( [maybe_min, maybe_max] )
 
 
@@ -62,8 +62,8 @@ def contour():
     # Each minimum has a 1 in 4 chancce of being negative (so they will
     # all four be positive decently often). 
 
-    xlims = [ lims() for _ in range(4) ]
-    ylims = [ lims() for _ in range(4) ]
+    xlims = [ lims(100) for _ in range(4) ]
+    ylims = [ lims(100) for _ in range(4) ]
 
     n = 5
 
@@ -77,7 +77,10 @@ def contour():
         pw[i].mesh( x, y, zvals(n) )
 
     clabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
+
     pw.style(clabs=clabs, title='ABCD sample title')
+
+    pw.style(xlog=True)
 
     pw.draw()
 

@@ -44,6 +44,14 @@ class plotcell(object):
     # Keep lists of the data that's to be shown on this subplot.
     bars, contours, lines, meshes = None, None, None, None
 
+
+    cmap = None
+
+    levels = None
+
+    norm = None
+
+
     # ==================================================================
     # =================================================== Initialization
     # ==================================================================
@@ -129,11 +137,23 @@ class plotcell(object):
 
         for key, val in kargs.items():
 
-            if key=='xlabel':
+            if key == 'cmap':
+                self.cmap = val
+
+            elif key == 'levels':
+                self.levels = val
+
+            elif key == 'norm':
+                self.norm = val
+
+            elif key=='xlabel':
                 self.ax.set_xlabel( helpers.tex(val) )
 
             elif key=='xlims':
                 self.ax.set_xlim(val)
+
+            elif key == 'xlog':
+                self.ax.set_xscale('log' if bool(val) else 'linear')
 
             elif key=='xticklabels':
                 self.ax.set_xticklabels(val)
@@ -146,6 +166,9 @@ class plotcell(object):
 
             elif key=='ylims':
                 self.ax.set_ylim(val)
+
+            elif key == 'ylog':
+                self.ax.set_yscale('log' if bool(val) else 'linear')
 
             elif key=='yticklabels':
                 self.ax.set_yticklabels(val)
@@ -167,24 +190,24 @@ class plotcell(object):
         shared color scale.
         """
 
-        # TODO: Handle limits, ticks, tick labels for x, y, and z. 
+        self.style(**kwargs)
 
         ckeys, mkeys = ('cmap', 'levels'), ('cmap', 'norm')
 
         axkeys = ( 'xlims', 'xticks', 'xticklabels',
                    'ylims', 'yticks', 'yticklabels' )
 
-        self.style( **helpers.dslice(kwargs, axkeys) )
+#        self.style( **helpers.dslice(kwargs, axkeys) )
 
         # Handle contours first, if any. 
         for x, y, z, a, k in self.contours:
-            ckwargs = helpers.dsum( k, helpers.dslice(kwargs, ckeys) )
-            self.ax.contourf(x, y, z, *a, **ckwargs)
+            kw = helpers.dsum( k, {'cmap':self.cmap, 'levels':self.levels} )
+            self.ax.contourf(x, y, z, *a, **kw)
 
         # Handle the color mesh, if any. 
         for x, y, z, a, k in self.meshes:
-            mkwargs = helpers.dsum( k, helpers.dslice(kwargs, mkeys) )
-            self.ax.pcolormesh(x, y, z, *a, **mkwargs)
+            kw = helpers.dsum( k, {'cmap':self.cmap, 'norm':self.norm} )
+            self.ax.pcolormesh(x, y, z, *a, **kw)
 
         # Draw the bar plots, if any. 
         for x, y, a, k in self.bars:

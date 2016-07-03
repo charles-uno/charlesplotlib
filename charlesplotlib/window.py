@@ -70,6 +70,9 @@ class plotwindow:
     # Keep track of the default font size. 
     fontsize = None
 
+
+    xlog, ylog, zlog = False, False, False
+
     # ==================================================================
     # =================================================== Initialization
     # ==================================================================
@@ -231,6 +234,14 @@ class plotwindow:
 
 
 
+    def ilog(self, i):
+        """For the moment, at least, don't ask the cells whether or not
+        they are log-scaled. That information is handled at the window
+        level.
+        """
+        return (self.xlog, self.ylog, self.zlog)[i]
+
+
     # ==================================================================
     # ================================================= Axis Aggregation
     # ==================================================================
@@ -273,7 +284,14 @@ class plotwindow:
                 targs['fontsize'] = str(1.2*_fontsize)
                 self.tax.text(s=helpers.tex(val), **targs)
 
-      # Anything else gets forwarded to each cell. 
+            elif key == 'xlog' and bool(val):
+                self.xlog = True
+
+            elif key == 'ylog' and bool(val):
+                self.ylog = True
+
+
+            # Anything else gets forwarded to each cell. 
             else:
                 [ c.style( **{key:val} ) for c in self.cells.flatten() ]
 
@@ -293,9 +311,12 @@ class plotwindow:
     def draw(self, filename=None):
         global _savefmt, _savepath
 
-        axlims = [ ( self.imin(i), self.imed(i), self.imax(i) ) for i in range(3) ]
+        axlims = [ ( self.imin(i), self.imax(i), self.ilog(i) ) for i in range(3) ]
 
         kwargs = axparams(*axlims, cax=self.fax)
+
+        print(kwargs)
+
 
         [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
 
@@ -337,7 +358,7 @@ class axparams(dict):
 
         yparams = self.foo('y', *ylims)
 
-        zmin, zmed, zmax = zlims
+        zmin, zmax, zlog = zlims
 
         # If the z values are all positive, to within a tolerance, we use
         # the sequential colormap. 
@@ -364,22 +385,31 @@ class axparams(dict):
 
 
 
-    def foo(self, name, imin, imed, imax):
+    def foo(self, name, imin, imax, ilog):
 
-        # Axes should either have zero in the middle or at the end.
 
-        ticks = np.linspace(imin, imax, 5)
+        if ilog and imin <=0:
+            raise RuntimeError('Nonpositive minimum with log scale on ' + name + ' axis.')
+
+        if ilog:
+            pmin = int( np.floor( np.log10(imin) ) )
+            pmax = int( np.ceil( np.log10(imax) ) )
+            pticks = np.arange(pmin, pmax + 1)
+
+            lims = (10**pmin, 10**pmax)
+            ticks = 10**pticks
+
+        else:
+            lims = ( int( np.floor(imin) ), int( np.ceil(imax) ) )
+
+            ticks = np.linspace(lims[0], lims[1], 5)
 
         ticklabels = [ self.fmt(t) for t in ticks ]
 
-        lims = (imin, imax)
-
         return { name + 'ticks':ticks,
                  name + 'ticklabels':ticklabels,
-                 name + 'lims':lims }
-
-
-
+                 name + 'lims':lims, 
+                 name + 'log':ilog }
 
 
     def fmt(self, z):

@@ -1,21 +1,19 @@
-#!/usr/bin/env python
-
 # Charles McEachern
 
 # Spring 2016
 
 # Note: This document wraps at column 72. 
 
-# #####################################################################
-# ############################################################ Synopsis
-# #####################################################################
+# ######################################################################
+# ############################################################# Synopsis
+# ######################################################################
 
 # The plot window object is a wrapper around Matplotlib, designed to
 # create plots which look nice in a dissertation or talk. 
 
-# #####################################################################
-# ################################################# Import Dependencies
-# #####################################################################
+# ######################################################################
+# ################################################## Import Dependencies
+# ######################################################################
 
 import cubehelix
 import matplotlib
@@ -35,9 +33,9 @@ from sys import argv
 from time import localtime as lt
 from numpy.ma import masked_where
 
-# #####################################################################
-# #################################################### Helper Functions
-# #####################################################################
+# ######################################################################
+# ##################################################### Helper Functions
+# ######################################################################
 
 # Grab a sebset of a dictionary by keys.
 def dslice(d, keys):
@@ -47,19 +45,34 @@ def dslice(d, keys):
 # entries in a list or generator. 
 def dsum(*args):
   dlist = list( args[0] ) if len(args)==1 else args
-  return dict( sum( [ d.items() for d in dlist ], [] ) )
+  return dict( sum( [ list( d.items() ) for d in dlist ], [] ) )
 
-# Safely get the maximum of a possibly-empty list or iterator. 
+
+
+
+def values(*args):
+    if len(args) == 0:
+        return None
+    elif len(args) == 1:
+        return [ x for x in list( args[0] ) if x is not None ]
+    else:
+        return [ x for x in  args if x is not None ]
+
+
+
+
+
+
+# Safely get the maximum of a possibly-empty list or iterator. As in
+# Python2, None counts as lower than any number.
 def nax(*args):
-  vals = list( args[0] ) if len(args)==1 else args
-  return None if len(vals)==0 else np.max(vals)
+    return np.max( np.array( values(*args) ) )
 
 # Safely get the minimum of a possibly-empty list or iterator. 
 def nin(*args):
-  vals = list( args[0] ) if len(args)==1 else args
-  # We have to be careful -- None counts as smaller than any number. 
-  nums = [ n for n in np.array(vals).flatten() if n is not None ]
-  return None if len(nums)==0 else np.min(nums)
+    return np.min( np.array( values(*args) ) )
+
+
 
 # Format a chunk of text to be non-math LaTeX. 
 def notex(x):
@@ -86,9 +99,9 @@ def tex(x):
 def znt(x, width=0):
   return str( int(x) ).zfill(width)
 
-# #####################################################################
-# ########################################################## Color Maps
-# #####################################################################
+# ######################################################################
+# ########################################################### Color Maps
+# ######################################################################
 
 # There are two color maps. One goes from white to black, through
 # blues and reds. The other is diverging, with white in the middle and
@@ -104,9 +117,9 @@ def _cmap_(ncolors=1024, diverging=False):
     ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
     return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
 
-# #####################################################################
-# ################################################### Global Parameters
-# #####################################################################
+# ######################################################################
+# #################################################### Global Parameters
+# ######################################################################
 
 _ncolors_ = 7
 
@@ -128,6 +141,12 @@ class axparams(dict):
 
   def __init__(self, xlims, ylims, zlims, cax):
     global _ncolors_
+
+    print(xlims)
+    print(ylims)
+    print(zlims)
+
+
 
     xparams = self.foo('x', *xlims)
 
@@ -217,9 +236,9 @@ class plotwindow:
     rc( 'font', **{ 'family':'sans-serif', 'sans-serif':['Helvetica'], 
                     'size':str( _fontsize_ ) } )
     rc('text', usetex=True)
-    rc('text.latex', preamble='\usepackage{amsmath}, ' +
-                              '\usepackage{amssymb}, ' + 
-                              '\usepackage{color}')
+    rc('text.latex', preamble='\\usepackage{amsmath}, ' +
+                              '\\usepackage{amssymb}, ' + 
+                              '\\usepackage{color}')
     # The window will be broken up into some number of equally-sized
     # tiles. That's the unit we use to specify the relative sizes of
     # plot elements. 
@@ -229,14 +248,14 @@ class plotwindow:
     sidewidth = 10
     cellpad = 5
     labelpad = int( 20*_fontscale_ )
-    cellwidth = (210/ncols) - cellpad
+    cellwidth = (210//ncols) - cellpad
     cellheight = int( cellwidth*slope )
     # Figure out the total number of tiles we need. 
     tilewidth = 210 - cellpad + 2*sidewidth + 4*labelpad
     tileheight = ( titleheight + headheight + nrows*cellheight +
                    (nrows-1)*cellpad + 2*labelpad + footheight )
     # Set the window size to ensure that the tiles are square. 
-    inchheight = tileheight*inchwidth/tilewidth
+    inchheight = tileheight*inchwidth//tilewidth
     # Create the window. Tell it that we want the subplot area to go
     # all the way to the edges, then break that area up into tiles. 
     fig = plt.figure(figsize=(inchwidth, inchheight), facecolor='w')
@@ -252,7 +271,14 @@ class plotwindow:
       for col in range(ncols):
         left = 2*labelpad + sidewidth + col*(cellwidth + cellpad)
         right = left + cellwidth
+
+        print(top, bot, left, right)
+
+
         ax = plt.subplot( tiles[top:bot, left:right] )
+
+
+
         self.cells[row, col] = plotcell(ax)
     # Space out the title axis. 
     left = 2*labelpad + sidewidth
@@ -337,6 +363,10 @@ class plotwindow:
   # -------------------------------------------------------------------
 
   def imax(self, i):
+
+    print('imax:', nax( cell.imax(i) for cell in self.cells.flatten() ) )
+
+
     return nax( cell.imax(i) for cell in self.cells.flatten() )
 
   def imin(self, i):
@@ -387,6 +417,10 @@ class plotwindow:
     global _savefmt_, _savepath_
 
     axlims = [ ( self.imin(i), self.imax(i) ) for i in range(3) ]
+
+    print(axlims)
+
+
     kwargs = axparams(*axlims, cax=self.fax)
     [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
 
@@ -405,7 +439,7 @@ class plotwindow:
         out = _savepath_ + '/' + filename
       else:
         out = _savepath_ + '/' + filename + '.' + _savefmt_
-      print 'Saving ' + out
+      print('Saving ' + out)
       return plt.savefig(out)
     # Otherwise, show the plot on the screen. 
     else:
@@ -527,7 +561,7 @@ class plotcell:
         self.ax.set_yticks(val)
 
       else:
-        print 'WARNING -- unrecognized style parameter ' + key
+        print('WARNING -- unrecognized style parameter', key)
 
     return
 
@@ -752,13 +786,13 @@ class plotWindow:
     ymax = None if self.ymax() is None else np.round( self.ymax() )
 
     if np.iscomplexobj(xmin):
-      print 'xmin is complex! '
+      print('xmin is complex! ')
     if np.iscomplexobj(xmax):
-      print 'xmax is complex! '
+      print('xmax is complex! ')
     if np.iscomplexobj(ymin):
-      print 'ymin is complex! '
+      print('ymin is complex! ')
     if np.iscomplexobj(ymax):
-      print 'ymax is complex! '
+      print('ymax is complex! ')
 
 #    xmin = np.floor( float( format(self.xmin(), '.4e') ) )
 #    xmax = np.ceil( float( format(self.xmax(), '.4e') ) )
@@ -961,7 +995,7 @@ class plotCell:
         self.nyticks = None
       # Report any unfamiliar parameters. 
       else:
-        print 'WARNING: Unknown param ', key, ' = ', val
+        print('WARNING: Unknown param', key, '=', val)
     return
 
   # ---------------------------------------------------------------------------
@@ -1013,13 +1047,13 @@ class plotCell:
       # Use the color params we were passed, but allow keyword arguments from
       # the contour call to overwrite them. 
       citems = [ ( key, colors[key] ) for key in ('ticks', 'levels', 'norm', 'cmap') ]
-      kargs = dict( citems + self.ckargs.items() )
+      kargs = dict( citems + list( self.ckargs.items() ) )
       self.ax.contourf(self.x, self.y, self.cz, **kargs)
     # Same for a mesh. 
     if self.mz is not None:
       citems = [ ( 'norm', colors['mnorm'] if 'mnorm' in colors else None ), 
                  ( 'cmap', colors['mcmap'] if 'mcmap' in colors else None ) ]
-      kargs = dict( citems + self.mkargs.items() )
+      kargs = dict( citems + list( self.mkargs.items() ) )
       self.ax.pcolormesh(self.x, self.y, self.mz, **kargs)
 
     # Draw the bars. 
@@ -1284,7 +1318,7 @@ class plotColors(dict):
     elif self.colorbar=='sym':
       ulevs = np.array( [ self.symMron(c) for c in clevs ] )
     else:
-      print 'WARNING: mesh can\'t handle that. '
+      print('WARNING: mesh can\'t handle that. ')
     clist = [ temp['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
     cmap = ListedColormap(clist)
     norm = BoundaryNorm(clevs, cmap.N)

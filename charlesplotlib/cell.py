@@ -154,6 +154,7 @@ class plotcell(object):
 
             elif key == 'xlog':
                 self.ax.set_xscale('log' if bool(val) else 'linear')
+                self.ax.minorticks_off()
 
             elif key=='xticklabels':
                 self.ax.set_xticklabels(val)
@@ -169,6 +170,7 @@ class plotcell(object):
 
             elif key == 'ylog':
                 self.ax.set_yscale('log' if bool(val) else 'linear')
+                self.ax.minorticks_off()
 
             elif key=='yticklabels':
                 self.ax.set_yticklabels(val)
@@ -192,10 +194,10 @@ class plotcell(object):
 
         self.style(**kwargs)
 
-        ckeys, mkeys = ('cmap', 'levels'), ('cmap', 'norm')
+#        ckeys, mkeys = ('cmap', 'levels'), ('cmap', 'norm')
 
-        axkeys = ( 'xlims', 'xticks', 'xticklabels',
-                   'ylims', 'yticks', 'yticklabels' )
+#        axkeys = ( 'xlims', 'xticks', 'xticklabels',
+#                   'ylims', 'yticks', 'yticklabels' )
 
 #        self.style( **helpers.dslice(kwargs, axkeys) )
 

@@ -32,6 +32,19 @@ from numpy.ma import masked_where
 
 from .cell import plotcell
 from . import helpers
+from . import tools
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ######################################################################
 # #################################################### Global Parameters
@@ -39,7 +52,10 @@ from . import helpers
 
 # TODO -- Should probably be in the window object.
 
-_ncolors = 7
+_ncolors = 13
+
+# With 13 colors, we can have 7, 5, or 4 ticks. 
+_nticks = 7
 
 # For talks, all font sizes will be scaled up. 
 _fontscale = 1.
@@ -58,7 +74,7 @@ _savepath = os.environ['HOME'] + '/Desktop/plots/' + helpers.now()
 
 class plotwindow:
 
-    # Array of Plot Cells. 
+    # Array of plot cells. 
     cells = None
 
     # Footer axis, right axis, and title axis. 
@@ -113,7 +129,7 @@ class plotwindow:
         headheight = int( 10*_fontscale if ncols > 1 else 1 )
         footheight = 10
         sidewidth = 10
-        cellpad = 5
+        cellpad = 10
         labelpad = int(20*_fontscale)
         cellwidth = (210//ncols) - cellpad
         cellheight = int( cellwidth*slope )
@@ -226,9 +242,6 @@ class plotwindow:
     def imax(self, i):
         return helpers.nax( cell.imax(i) for cell in self.cells.flatten() )
 
-    def imed(self, i):
-        return helpers.ned( cell.imed(i) for cell in self.cells.flatten() )
-
     def imin(self, i):
         return helpers.nin( cell.imin(i) for cell in self.cells.flatten() )
 
@@ -240,25 +253,6 @@ class plotwindow:
         level.
         """
         return (self.xlog, self.ylog, self.zlog)[i]
-
-
-    # ==================================================================
-    # ================================================= Axis Aggregation
-    # ==================================================================
-
-    def axparams(self):
-
-
-        # The x axis can be linear with zero at the end, be linear with zero in the middle, or be a log scale. 
-        # The y axis can be linear with zero at the end, be linear with zero in the middle, or be a log scale. 
-
-        # The z axis is also allowed to use a symmetric log scale. 
-
-        pass
-
-
-
-
 
   # -------------------------------------------------------------------
   # -------------------------------------------------- Style Parameters
@@ -284,11 +278,21 @@ class plotwindow:
                 targs['fontsize'] = str(1.2*_fontsize)
                 self.tax.text(s=helpers.tex(val), **targs)
 
-            elif key == 'xlog' and bool(val):
-                self.xlog = True
+            # If an x label is given to the whole window, only set it on the bottom cells.
+            elif key in ('xlabel', 'xticklabels'):
+                [ c.style( **{key:val} ) for c in self[-1, :] ]
 
-            elif key == 'ylog' and bool(val):
-                self.ylog = True
+            elif key in ('ylabel', 'yticklabels'):
+                [ c.style( **{key:val} ) for c in self[:, 0] ]
+
+            # For log scaling, note the information here before passing it along.
+            elif key == 'xlog':
+                self.xlog = bool(val)
+                [ c.style( **{key:val} ) for c in self.cells.flatten() ]
+
+            elif key == 'ylog':
+                self.ylog = bool(val)
+                [ c.style( **{key:val} ) for c in self.cells.flatten() ]
 
 
             # Anything else gets forwarded to each cell. 
@@ -315,15 +319,18 @@ class plotwindow:
 
         kwargs = axparams(*axlims, cax=self.fax)
 
-        print(kwargs)
+        self.style(**kwargs)
 
+#        print(kwargs)
 
-        [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
+#        # Only the leftmost cells get y axis labels and tick labels. 
+#        self[:, 1:].style(yticklabels=(), ylabel='')
 
-        # Only the leftmost cells get y axis labels and tick labels. 
-        self[:, 1:].style(yticklabels=(), ylabel='')
-        # Only the bottom cells get x axis labela and tick labels. 
-        self[:-1, :].style(xticklabels=(), xlabel='')
+#        # Only the bottom cells get x axis labela and tick labels. 
+#        self[:-1, :].style(xticklabels=(), xlabel='')
+
+#        [ cell.draw(**kwargs) for cell in self.cells.flatten() ]
+        [ cell.draw() for cell in self.cells.flatten() ]
 
         # If the flag -i was given, save the output as an image.
         if '-i' in argv and isinstance(filename, str):
@@ -352,7 +359,7 @@ class plotwindow:
 class axparams(dict):
 
     def __init__(self, xlims, ylims, zlims, cax):
-        global _ncolors
+        global _ncolors, _nticks
 
         xparams = self.foo('x', *xlims)
 
@@ -364,14 +371,20 @@ class axparams(dict):
         # the sequential colormap. 
         if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
             levels = np.linspace(0, zmax, _ncolors + 1 )
-            cmap = seq_cmap(_ncolors)
+            cmap = tools.seq_cmap(_ncolors)
         # Otherwise, we use the diverging colormap. 
         else:
             zabs = np.max( np.abs( (zmin, zmax) ) )
             levels = np.linspace(-zabs, zabs, _ncolors + 1)
-            cmap = sym_cmap(_ncolors)
+            cmap = tools.div_cmap(_ncolors)
         # Ticks go in the center of each color level. 
-        zticks = 0.5*( levels[1:] + levels[:-1] )
+#        zticks = 0.5*( levels[1:] + levels[:-1] )
+
+        firsttick = 0.5*( levels[0] + levels[1] )
+        lasttick = 0.5*( levels[-2] + levels[-1] )
+
+        zticks = np.linspace(firsttick, lasttick, _nticks)
+
         norm = BoundaryNorm(levels, cmap.N)
         ColorbarBase( cax, cmap=cmap, ticks=zticks, 
                       norm=norm, orientation='horizontal' )
@@ -421,29 +434,76 @@ class axparams(dict):
 
 
 
+
+
+from .cell import cell
+
+
+
+
 # ######################################################################
-# ########################################################### Color Maps
-# ######################################################################
 
-def sym_cmap(ncolors=1024):
-    """Create a symmetric (diverging) colormap using cubehelix."""
-    # Get a high-resolution unit interval. Evaluate two cubehelixes on
-    # it, one for the positive values and one for the negatives.
-    u = np.linspace(0., 1., 1024)
-    bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
-    top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
-    # Slap the two together into a linear segmented colormap.
-    ch = lsc.from_list( 'ch_sym', np.vstack( (bot, top) ) )
-    # From there, get a colormap with the desired number of intervals.
-    return ListedColormap( ch( np.linspace(0.05, 0.95, ncolors) ) )
+class window(object):
 
-# ----------------------------------------------------------------------
+    cells = None
 
-def seq_cmap(ncolors=1024):
-    """Create a sequential colormap using cubehelix."""
-    ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
-    # Limit to a discrete number of color intervals.
-    return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
+    fontsize = 10
+    fontscale = 1.
+
+    saveformat = 'pdf'
+
+    zcolors = 13
+    zticks = 7
+    zlog = False
+
+    slope = 1.
+
+    xmin, xmax = None, None
+    xlog = False
+    xlabel = None
+    xticks = None
+    xticklabels = None
+
+    ymin, ymax = None, None
+    ylog = False
+    ylabel = None
+    yticks = None
+    yticklabels = None
+
+    # ==================================================================
+
+    def __enter__(self, nrows=1, ncols=1):
+        self.cells = np.ndarray( (nrows, ncols), dtype=object )
+        for r in range(nrows):
+            for c in range(ncols):
+                self.cells[r, c] = cell()
+        return self
+
+    # ==================================================================
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.cells.flatten()[key]
+        elif isinstance(key, tuple) and len(key) == 2 and isinstance(key[0], int) and isinstance(key[1], int):
+            return self.cells[key]
+        else:
+            raise ValueError('Bad value to window.__getitem__: ' + key)
+
+    # ------------------------------------------------------------------
+
+    def __setitem__(self, *args):
+        raise TypeError('window.__setitem__ is not allowed.')
+
+    # ==================================================================
+
+    def __exit__(self, *args):
+
+
+        self.set_axes()
+
+
+
+
 
 
 

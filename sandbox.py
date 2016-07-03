@@ -22,7 +22,9 @@ import numpy as np
 # ######################################################################
 
 def main():
+
     return contour()
+
 
 # ######################################################################
 # ######################################################### Contour Plot
@@ -72,13 +74,16 @@ def contour():
     xvals = [ np.linspace(x[0], x[1], n) for x in xlims ]
     yvals = [ np.linspace(y[0], y[1], n) for y in ylims ]
 
-
-    for i, (x, y) in enumerate( zip(xvals, yvals) ):
-        pw[i].mesh( x, y, zvals(n) )
+    pw[0].mesh( xvals[0], yvals[0], zvals(n) )
+    pw[1].contour( xvals[1], yvals[1], zvals(n) )
+    pw[2].contour( xvals[2], yvals[2], zvals(n) )
+    pw[3].mesh( xvals[3], yvals[3], zvals(n) )
 
     clabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
 
-    pw.style(clabs=clabs, title='ABCD sample title')
+    rlabs = ('$m = 1$', '$m = 4$')
+
+    pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
 
     pw.style(xlog=True)
 

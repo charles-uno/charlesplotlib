@@ -215,37 +215,52 @@ class plotwindow:
             self.cells.flatten()[i]
         return plotwindow(_cells=cells)
 
-  # -------------------------------------------------------------------
-  # ---------------------------------------------------------- Add Data
-  # -------------------------------------------------------------------
-
-    # If given a contour to plot, forward it to each cell. 
-    def contour(self, *args, **kargs):
-        return [ c.contour(*args, **kargs) for c in self.cells.flatten() ]
-
-    # If given a line to plot, forward to each cell. 
-    def line(self, *args, **kargs):
-        return [ c.line(*args, **kargs) for c in self.cells.flatten() ]
-
-    # If given a mesh to plot, forward to each cell. 
-    def mesh(self, *args, **kargs):
-        return [ c.mesh(*args, **kargs) for c in self.cells.flatten() ]
+    # ==================================================================
+    # ========================================================= Add Data
+    # ==================================================================
 
     # If given a bar plot, forward to each cell. 
-    def bar(self, *args, **kargs):
-        return [ c.bar(*args, **kargs) for c in self.cells.flatten() ]
+    def bar(self, *args, **kwargs):
+        """Forward a bar plot to each cell."""
+        return [ c.bar(*args, **kwargs) for c in self.cells.flatten() ]
 
-  # -------------------------------------------------------------------
-  # ------------------------------------------------- Find Cell Extrema
-  # -------------------------------------------------------------------
+    # ------------------------------------------------------------------
+
+    def contour(self, *args, **kwargs):
+        """Forward a contour to each cell."""
+        return [ c.contour(*args, **kwargs) for c in self.cells.flatten() ]
+
+    # ------------------------------------------------------------------
+
+    def line(self, *args, **kwargs):
+        """Forward a line to each cell."""
+        return [ c.line(*args, **kwargs) for c in self.cells.flatten() ]
+
+    # ------------------------------------------------------------------
+
+    def mesh(self, *args, **kwargs):
+        """Forward a mesh to each cell."""
+        return [ c.mesh(*args, **kwargs) for c in self.cells.flatten() ]
+
+    # ==================================================================
+    # ===================================================== Find Extrema
+    # ==================================================================
 
     def imax(self, i):
+        """In the given dimension, find the maximum value among all data
+        in all cells.
+        """
         return helpers.nax( cell.imax(i) for cell in self.cells.flatten() )
 
+    # ------------------------------------------------------------------
+
     def imin(self, i):
+        """In the given dimension, find the minimum value among all data
+        in all cells.
+        """
         return helpers.nin( cell.imin(i) for cell in self.cells.flatten() )
 
-
+    # ------------------------------------------------------------------
 
     def ilog(self, i):
         """For the moment, at least, don't ask the cells whether or not
@@ -254,9 +269,9 @@ class plotwindow:
         """
         return (self.xlog, self.ylog, self.zlog)[i]
 
-  # -------------------------------------------------------------------
-  # -------------------------------------------------- Style Parameters
-  # -------------------------------------------------------------------
+    # ==================================================================
+    # ========================================== Window-Level Parameters
+    # ==================================================================
 
     def style(self, **kargs):
         global _fontsize_
@@ -370,16 +385,16 @@ class axparams(dict):
         # If the z values are all positive, to within a tolerance, we use
         # the sequential colormap. 
         if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
-            levels = np.linspace(0, zmax, _ncolors + 1 )
+            # We want zero at the center of the first color, not the bottom of it, so it shows up in the label.
+            dz = zmax/(_ncolors - 0.5)
+            levels = np.linspace(-dz/2, zmax, _ncolors + 1)
             cmap = tools.seq_cmap(_ncolors)
         # Otherwise, we use the diverging colormap. 
         else:
             zabs = np.max( np.abs( (zmin, zmax) ) )
             levels = np.linspace(-zabs, zabs, _ncolors + 1)
             cmap = tools.div_cmap(_ncolors)
-        # Ticks go in the center of each color level. 
-#        zticks = 0.5*( levels[1:] + levels[:-1] )
-
+        # Ticks go in the center of each color level. With 13 colors, the color bar looks best with 4, 5, or 7 ticks.
         firsttick = 0.5*( levels[0] + levels[1] )
         lasttick = 0.5*( levels[-2] + levels[-1] )
 
@@ -389,7 +404,7 @@ class axparams(dict):
         ColorbarBase( cax, cmap=cmap, ticks=zticks, 
                       norm=norm, orientation='horizontal' )
 
-        cax.set_xticklabels( [ self.fmt(t) for t in zticks ] )
+        cax.set_xticklabels( [ helpers.fmt_int(t) for t in zticks ] )
 
         zparams = {'cmap':cmap, 'levels':levels, 'norm':norm}
 
@@ -408,25 +423,19 @@ class axparams(dict):
             pmin = int( np.floor( np.log10(imin) ) )
             pmax = int( np.ceil( np.log10(imax) ) )
             pticks = np.arange(pmin, pmax + 1)
-
             lims = (10**pmin, 10**pmax)
             ticks = 10**pticks
-
+            ticklabels = [ helpers.fmt_pow(t) for t in ticks ]
         else:
             lims = ( int( np.floor(imin) ), int( np.ceil(imax) ) )
-
             ticks = np.linspace(lims[0], lims[1], 5)
+            ticklabels = [ helpers.fmt_int(t) for t in ticks ]
 
-        ticklabels = [ self.fmt(t) for t in ticks ]
 
         return { name + 'ticks':ticks,
                  name + 'ticklabels':ticklabels,
                  name + 'lims':lims, 
                  name + 'log':ilog }
-
-
-    def fmt(self, z):
-        return '$' + str( int(z) ) + '$'
 
 
 

@@ -125,6 +125,12 @@ class plotcell(object):
 
         return self.meshes.append( (args, kwargs) )
 
+    # ------------------------------------------------------------------
+
+    def text(self, *args, **kwargs):
+        """Store a text element, to add to the plot later."""
+        self.texts.append( (args, kwargs) )
+
     # ==================================================================
     # ====================================================== Get Extrema
     # ==================================================================

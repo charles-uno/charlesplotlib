@@ -46,7 +46,7 @@ def lims(scalemax):
     return sorted( [maybe_min, maybe_max] )
 
 
-def zvals(n, scalemax=100):
+def zvals(n, scalemax=1000):
     scale = np.random.randint(scalemax)
     # One time in four, make it negative. 
     if flip(4):
@@ -64,8 +64,8 @@ def contour():
     # Each minimum has a 1 in 4 chancce of being negative (so they will
     # all four be positive decently often). 
 
-    xlims = [ lims(100) for _ in range(4) ]
-    ylims = [ lims(100) for _ in range(4) ]
+    xlims = [ lims(1000) for _ in range(4) ]
+    ylims = [ lims(1000) for _ in range(4) ]
 
     n = 5
 
@@ -85,7 +85,10 @@ def contour():
 
     pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
 
-    pw.style(xlog=True)
+    if flip():
+        pw.style(xlog=True)
+    else:
+        pw.style(ylog=True)
 
     pw.draw()
 

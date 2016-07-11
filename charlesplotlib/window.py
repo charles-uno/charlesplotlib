@@ -187,7 +187,7 @@ class plotwindow:
         # Hide the axes that we just use for placing text. 
         self.tax.axis('off')
         self.rax.axis('off')
-#    self.fax.axis('off')
+#        self.fax.axis('off')
         [ l.axis('off') for l in self.laxes ]
         [ h.axis('off') for h in self.haxes ]
         return
@@ -309,6 +309,8 @@ class plotwindow:
                 self.ylog = bool(val)
                 [ c.style( **{key:val} ) for c in self.cells.flatten() ]
 
+            elif key == 'zlog':
+                self.zlog = bool(val)
 
             # Anything else gets forwarded to each cell. 
             else:
@@ -377,37 +379,92 @@ class axparams(dict):
         global _ncolors, _nticks
 
         xparams = self.foo('x', *xlims)
-
         yparams = self.foo('y', *ylims)
 
         zmin, zmax, zlog = zlims
+        # Check if the z values are all positive, to within a tolerance.
 
-        # If the z values are all positive, to within a tolerance, we use
-        # the sequential colormap. 
-        if zmin > 0 or np.abs(zmin) < 0.01*np.abs(zmax):
-            # We want zero at the center of the first color, not the bottom of it, so it shows up in the label.
-            dz = zmax/(_ncolors - 0.5)
-            levels = np.linspace(-dz/2, zmax, _ncolors + 1)
-            cmap = tools.seq_cmap(_ncolors)
-        # Otherwise, we use the diverging colormap. 
+        # TODO -- Handle values very close to zero, or exactly zero! 
+
+        zpos = ( zmin > 0 ) or np.abs(zmin) < 1e-6*np.abs(zmax)
+        # If the z values are all positive, we use a sequential
+        # colormap. Otherwise, we use a diverging one. 
+        if zmin >= 0:
+            cmap = tools.seq_cmap(_ncolors) 
         else:
-            zabs = np.max( np.abs( (zmin, zmax) ) )
-            levels = np.linspace(-zabs, zabs, _ncolors + 1)
             cmap = tools.div_cmap(_ncolors)
-        # Ticks go in the center of each color level. With 13 colors, the color bar looks best with 4, 5, or 7 ticks.
-        firsttick = 0.5*( levels[0] + levels[1] )
-        lasttick = 0.5*( levels[-2] + levels[-1] )
 
-        zticks = np.linspace(firsttick, lasttick, _nticks)
+#        print('zmin:', zmin)
+#        print('zmax:', zmax)
+#        print('zlog:', zlog)
 
-        norm = BoundaryNorm(levels, cmap.N)
+        # For positive linear color scales, space levels uniformly. If
+        # the minimum is much less than the maximum, start at zero. 
+        if zmin >= 0 and not zlog:
+            print('positive linear')
+            # If the minimum is small compared to the maximum, start at
+            # zero. Get rid of the small positive offset. 
+            if zmin < 0.1*zmax:
+                zmin = 0
+            # Based on the minimum, maximum, and number of colors,
+            # figure out where the levels need to go. 
+            zlvlstep = (zmax - zmin)/(_ncolors - 1.)
+            zlvlmin = zmin - 0.5*zlvlstep
+            zlvlmax = zmax + 0.5*zlvlstep
+            zlevels = np.linspace(zlvlmin, zlvlmax, _ncolors + 1)
+            # Ticks are spaced linearly from the minimum to the maximum.
+            # The first and last ticks are centered in color levels. The
+            # rest hopefully are too, but that depends on the number of
+            # ticks and the number of colors. 
+            zticks = np.linspace(zmin, zmax, _nticks)
+        # For positive log scales, ticks go at powers of ten.
+        if zmin > 0 and zlog:
+            print('positive log')
+            # Round up from the maximum and down from the minimum to the
+            # next powers of ten. 
+            zmaxpow = int( np.ceil( np.log10(zmax) ) )
+            zminpow = int( np.floor( np.log10(zmin) ) )
+            # The above powers are centered in the first and last
+            # levels. From that, and the number of colors, figure out
+            # where the rest of the levels go. 
+            zlvlpowstep = (zmaxpow - zminpow)/(_ncolors - 1.)
+            zlvlpowmin = zminpow - 0.5*zlvlpowstep
+            zlvlpowmax = zmaxpow + 0.5*zlvlpowstep
+            zlvlpow = np.linspace(zlvlpowmin, zlvlpowmax, _ncolors + 1)
+            zlevels = 10**zlvlpow
+            # Ticks are centered in the levels -- on a log scale. 
+            ztickpow = np.arange(zminpow, zmaxpow + 1)
+            zticks = 10**ztickpow
+        # For a symmetric linear scale, the positive and negative
+        # extrema match to ensure that zero goes in the middle. 
+        elif zmin < 0 and not zlog:
+            print('symmetric linear')
+            # Find the maximum absolute value. 
+            zabs = np.max( np.abs( (zmin, zmax) ) )
+            # As above, the min and max are centered in the first and
+            # last levels. Assuming there are an odd number of colors,
+            # the middle level will be white. 
+            zlvlstep = 2*zabs/(_ncolors - 1.)
+            zlvlmin = -zabs - 0.5*zlvlstep
+            zlvlmax =  zabs + 0.5*zlvlstep
+            zlevels = np.linspace(zlvlmin, zlvlmax, _ncolors + 1)
+            # Assuming an odd number of ticks, the middle one will be
+            # zero. 
+            zticks = np.linspace(-zabs, zabs, _nticks)
+        # If asked for a log scale but given negative values, bail. We
+        # don't need symmetric log plots. 
+        else:
+            raise NotImplementedError('Log scale with zmin < 0.')
+        # From the determined ticks and levels, draw a colorbar. 
+        norm = BoundaryNorm(zlevels, cmap.N)
         ColorbarBase( cax, cmap=cmap, ticks=zticks, 
                       norm=norm, orientation='horizontal' )
-
-        cax.set_xticklabels( [ helpers.fmt_int(t) for t in zticks ] )
-
-        zparams = {'cmap':cmap, 'levels':levels, 'norm':norm}
-
+        # Tick labels can be formatted in a few ways. 
+        fmt = helpers.fmt_int if zlog else helpers.fmt_pow
+        cax.set_xticklabels( [ fmt(t) for t in zticks ] )
+        # Return a dictionary of color params to be distributed to each
+        # cell. This is how they all know what color scale to observe. 
+        zparams = {'cmap':cmap, 'levels':zlevels, 'norm':norm}
         return dict.__init__( self, helpers.dsum(xparams, yparams, zparams) )
 
 
@@ -444,71 +501,65 @@ class axparams(dict):
 
 
 
+def axis_params(imin, imax, ilog):
+    """Given the minimum and maximum values along an axis, and if it's
+    supposed to be log scaled, figure out ticks, etc.
+    """
+    global _ncolors, _nticks
+    # Everything gets packed into a dictionary to be returned. 
+    axparams = {}
 
-from .cell import cell
-
-
-
-
-# ######################################################################
-
-class window(object):
-
-    cells = None
-
-    fontsize = 10
-    fontscale = 1.
-
-    saveformat = 'pdf'
-
-    zcolors = 13
-    zticks = 7
-    zlog = False
-
-    slope = 1.
-
-    xmin, xmax = None, None
-    xlog = False
-    xlabel = None
-    xticks = None
-    xticklabels = None
-
-    ymin, ymax = None, None
-    ylog = False
-    ylabel = None
-    yticks = None
-    yticklabels = None
-
-    # ==================================================================
-
-    def __enter__(self, nrows=1, ncols=1):
-        self.cells = np.ndarray( (nrows, ncols), dtype=object )
-        for r in range(nrows):
-            for c in range(ncols):
-                self.cells[r, c] = cell()
-        return self
-
-    # ==================================================================
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self.cells.flatten()[key]
-        elif isinstance(key, tuple) and len(key) == 2 and isinstance(key[0], int) and isinstance(key[1], int):
-            return self.cells[key]
-        else:
-            raise ValueError('Bad value to window.__getitem__: ' + key)
-
-    # ------------------------------------------------------------------
-
-    def __setitem__(self, *args):
-        raise TypeError('window.__setitem__ is not allowed.')
-
-    # ==================================================================
-
-    def __exit__(self, *args):
+    # If the maximum is smaller than the minimum, the axis is meant to
+    # be backwards. Keep track of that. 
+    if imax < imin:
+        iflip = True
+    imin, imax = min(imin, imax), max(imin, imax)
+    # If there are negative values for a log axis, bail. 
+    if ilog and imin < 0:
+        raise ValueError('Log axis can\'t have negative values!')
+    # If everything is positive, use a sequential colormap. Otherwise,
+    # use a diverging one. 
+    if imin >= 0:
+        axparams['cmap'] = tools.seq_cmap(_ncolors)
+    else:
+        axparams['cmap'] = tools.div_cmap(_ncolors)
+    # We figure out color levels for every axis. These values are
+    # ignored for the x and y axes. Start with a linear positive axis.
+    if not ilog and min(imin, imax) >= 0:
+        # If the minimum is small, just start from zero. 
+        if np.abs(imin) < 0.1*np.abs(imax):
+            imin = 0
+        # The first tick is at the minimum. The last is at the maximum. 
+        ticks = np.linspace(imin, imax, _nticks)
+        # Levels need to be a bit broader so that the ticks are centered
+        # in each color. 
 
 
-        self.set_axes()
+
+        # TODO -- The x and y axes want a different number of ticks from the z axis! 
+
+
+
+'''
+
+
+
+        if ilog:
+            pmin = int( np.floor( np.log10(imin) ) )
+            pmax = int( np.ceil( np.log10(imax) ) )
+            pticks = np.arange(pmin, pmax + 1)
+            lims = (10**pmin, 10**pmax)
+            ticks = 10**pticks
+            ticklabels = [ helpers.fmt_pow(t) for t in ticks ]
+
+'''
+
+
+
+
+
+
+
 
 
 

@@ -90,6 +90,11 @@ def contour():
     else:
         pw.style(ylog=True)
 
+    if flip():
+        pw.style(zlog=True)
+
+
+
     pw.draw()
 
     return

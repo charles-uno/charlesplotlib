@@ -17,6 +17,48 @@ from time import localtime as lt
 
 
 
+
+
+
+
+
+def num(x):
+    """Attempt to cast a string as a float or integer. Failing that,
+    return the string.
+    """
+    for typ in (int, float):
+        try:
+            return typ(x)
+        except ValueError:
+            pass
+    return x
+
+
+# ----------------------------------------------------------------------
+
+
+
+def read(filename):
+    """Return the contents of a text file as a list of right-stripped
+    strings. 
+    """
+    if os.path.isfile(filename):
+        with open(filename, 'r') as handle:
+            return [ x.rstrip() for x in handle ]
+    else:
+        return None
+
+
+
+
+
+
+
+
+
+
+
+
 # ######################################################################
 # ###################################################### Tick Formatters
 # ######################################################################

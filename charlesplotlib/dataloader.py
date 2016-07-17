@@ -29,8 +29,8 @@ try:
 except ImportError:
   import pickle
 
+from . import helpers
 
-import .helpers
 
 
 
@@ -45,47 +45,83 @@ class DataLoader(object):
     based on those parameters.
     """
     # A dictionary of parameter dictionaries, keyed by data path. 
-    pathparams = {}
+    pathparams = None
+    # Keep track of a handful of recent arrays we've read in. 
+    memory = None
 
     # ==================================================================
 
-    def __init__(self, datapath):
-        """Find all the directories containing Tuna output and file them
-        in terms of their run parameters.
+    def __init__(self, *args):
+        """Given one or more directory paths, find all subdirectories
+        containing Tuna output. File input parameters by data path. 
         """
+        self.pathparams = {}
         stopwatch = time.time()
         print('Loading data parameters...', end='')
-        # Walk recursively through the data directory. Parse the
+        # Walk recursively through each data directory. Parse the
         # parameter input file for any folder that has one.
-        for root, dirs, files in os.walk(datapath):
-            paramlines = read( os.path.join(root, 'params.in') )
-            # If there's no input file, this is not a data directory. 
-            if paramlines is None:
-                continue
-            # Set up a dictionary entry for each data directory. Entries
-            # within that dictionary are themselves dictionaries,
-            # keeping track of the parameters for that run. 
-            self.pathparams[root] = {}
-            for key, val in [ x.split('=') for x in paramlines ]:
-                self.pathparams[root][ key.strip() ] = num(val)
+        for datapath in args:
+            for root, dirs, files in os.walk(datapath):
+                lines = helpers.read( os.path.join(root, 'params.in') )
+                # If there's no input, this is not a data directory. 
+                if lines is None:
+                    continue
+                # Set up a dictionary entry for each data directory. 
+                # Entries within that dictionary are themselves
+                # dictionaries, holding the parameters from that run. 
+                # Add default parameter values to make searching easier.
+                self.pathparams[root] = { 'bdrive':0, 'jdrive':0,
+                                          'inertia':-1, 'fdrive':0.016,
+                                          'azm':0, 'n1':150, 'lpp':4,
+                                          'ldrive':5}
+                for k, v in [ x.split('=') for x in lines ]:
+                    self.pathparams[root][ k.strip() ] = helpers.num(v)
         # Report what all we got, and how long it took. 
         print( 'Loaded parameters for', len(self.pathparams),
                'directories in', format(time.time() - stopwatch, '.1f'),
                'seconds.')
         return
-        
+
     # ==================================================================
 
+    def get_path(self, **kwargs):
+        """Get the data path matching the given keyword arguments."""
+        match = None
+        for path, params in self.pathparams.items():
+            # For each path, check against all keyword arguments. As
+            # soon as we find a mismatch, bail. 
+            for key, val in kwargs.items():
+                if key not in params or params[key] != val:
+                    break
+            # If we find them all to match, keep track of this path. 
+            else:
+                if match is None:
+                    match = path
+                # If we find multiple matches, complain. 
+                else:
+                    raise ValueError( 'Multiple paths matching ' +
+                                      str(kwargs) + '.' )
+        # If, after iterating through all of the paths, we have no
+        # matches, complain. 
+        if match is None:
+            raise ValueError('No paths matching ' + str(kwargs) + '.')
+        else:
+            return match
 
+    # ==================================================================
 
-
-
-
-
-
-
-
-
+    def get_array(self, path, name):
+        """Read in an array. Keep track of the most recent arrays to
+        avoid wasting time on duplicate reads of the same file. 
+        """
+        filename = os.path.join(path, name + '.dat')
+        # Set the memory on the first call, or reset it if it's full. 
+        if self.memory is None or len(self.memory) > 20:
+            self.memory = {}
+        # If we haven't read in this file, do so.
+        if filename not in self.memory:
+            self.memory[filename] = readarray(filename)
+        return self.memory[filename]
 
 
 
@@ -113,28 +149,6 @@ def com(x):
     else:
         return float(x)
 
-
-
-'''
-
-  def getPath(self, **kargs):
-    # Start with all the paths we have, then weed out any that don't match. 
-    paths = [ p for p in self.paths ]
-    for key, val in kargs.items():
-      paths = [ p for p in paths if self.paths[p][key]==val ]
-    # If there's anything other than exactly one match, something is wrong. 
-    if len(paths)<1:
-      print 'WARNING: No matching path found for ', kargs
-      return None
-    elif len(paths)>1:
-      print 'ERROR: Multiple matching paths found for ', kargs
-      exit()
-    else:
-      return paths[0]
-
-'''
-
-
 # ######################################################################
 # ######################################################### Array Reader
 # ######################################################################
@@ -147,7 +161,7 @@ def readarray(filename):
     # Shave off the file extension, and get names for the text data file
     # (dat) and pickled data (pkl). 
     name = filename[ :filename.rfind('.') ]
-    datname, pklname = name + '.dat', name + '.pkl'
+    datname, pklname = name + '.dat', name + '.p3'
     # Keep track of how long this takes. It might be a while. 
     stopwatch = time.time()
     # If a pickle is available, read that. 
@@ -168,9 +182,9 @@ def readarray(filename):
         # values -- this is much faster than appending as we go. Check
         # for a comma to see if we're dealing with floats or complexes.
         if len(datlines) > 0 and ',' in datlines[0]:
-            flatarr = np.empty(size, dtyle=np.complex)
+            flatarr = np.empty(size, dtype=np.complex)
         else:
-            flatarr = np.empty(size, dtyle=np.float)
+            flatarr = np.empty(size, dtype=np.float)
         # Fill the array with values one at a time. Stop when it's full,
         # or when we run out of values. 
         i = 0

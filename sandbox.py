@@ -20,8 +20,6 @@ import numpy as np
 
 import os
 
-import time
-
 # ######################################################################
 # ################################################################# Main
 # ######################################################################
@@ -38,9 +36,29 @@ def main():
 
 def tunaplot():
 
-    datapath = '/media/charles/My Passport/RUNS/'
+    datapath = '/media/charles/My Passport/RUNS/JDRIVE_LPP_4/'
 
-    dl = DataLoader(datapath)
+    dl = cpl.DataLoader(datapath)
+
+    path = dl.get_path(azm=4, model=1, fdrive=0.010)
+
+    print(path)
+
+    r, q = dl.get_array(path, 'r'), dl.get_array(path, 'q')
+
+    x, z = r*np.sin(q), r*np.cos(q)
+
+    # Sanity check: plot the grid. 
+
+    pw = cpl.plotwindow(slope=0.8)
+
+    for i in range(0, x.shape[0], 50):
+        pw.line( x[i, :], z[i, :] )
+
+#    for k in range(0, x.shape[1], 50):
+#        pw.line( x[:, k], z[:, k] )
+
+    pw.draw()
 
     return
 

@@ -382,6 +382,11 @@ class axparams(dict):
         yparams = self.foo('y', *ylims)
 
         zmin, zmax, zlog = zlims
+
+
+        if zmax is None or zmin is None:
+            return dict.__init__( self, helpers.dsum( xparams, yparams, {} ) )
+
         # Check if the z values are all positive, to within a tolerance.
 
         # TODO -- Handle values very close to zero, or exactly zero! 

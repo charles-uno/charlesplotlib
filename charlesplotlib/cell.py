@@ -41,7 +41,8 @@ class plotcell(object):
     bars, contours, lines, meshes = None, None, None, None
     # Axis bounds. These are set by the plot window after all the data
     # is entered. Typically, all cells share the same bounds. 
-    xmin, xmax, ymin, ymax = None, None, None, None
+    xmin, xmax, xflip = None, None, None
+    ymin, ymax, yflip = None, None, None
     # Axes can be log or linear. For the moment, at least, this is
     # specified by the user. It's hard to guess if an axis is supposed
     # to be log scaled! 
@@ -59,6 +60,8 @@ class plotcell(object):
     # is passed to each cell by the plot window (after it figures out
     # the appropriate scale, etc). 
     cmap, levels, norm = None, None, None
+    # By default, do not draw Earth at the center of the plot. 
+    earth = None
 
     # ==================================================================
     # =================================================== Initialization
@@ -87,32 +90,26 @@ class plotcell(object):
 
         if len(args) < 2:
             raise ValueError('Bar plot must have at least two sequential arguments.')
-
         # Add a dummy z value to make later comparisons easy. 
-        xyzargs = args[:2] + (None,) + args[:2]
-
+        xyzargs = args[:2] + (None,) + args[2:]
         return self.bars.append( (xyzargs, kwargs) )
 
     # ------------------------------------------------------------------
 
     def contour(self, *args, **kwargs):
         """Store a contour plot, to plot later."""
-
         if len(args) < 3:
             raise ValueError('Contour plot must have at least three sequential arguments.')
-
         return self.contours.append( (args, kwargs) )
 
     # ------------------------------------------------------------------
 
     def line(self, *args, **kwargs):
         """Store a line plot, to plot later."""
-
         if len(args) < 2:
             raise ValueError('Line plot must have at least two sequential arguments.')
         # Add a dummy z value to make later comparisons easy. 
-        xyzargs = args[:2] + (None,) + args[:2]
-
+        xyzargs = args[:2] + (None,) + args[2:]
         return self.lines.append( (xyzargs, kwargs) )
 
     # ------------------------------------------------------------------
@@ -170,6 +167,9 @@ class plotcell(object):
             if key == 'cmap':
                 self.cmap = val
 
+            elif key == 'earth':
+                self.earth = val
+
             elif key == 'levels':
                 self.levels = val
 
@@ -178,51 +178,39 @@ class plotcell(object):
 
             elif key=='xlabel':
                 self.xlabel = helpers.tex(val)
-#                self.ax.set_xlabel( helpers.tex(val) )
 
             elif key=='xlims':
                 self.xmin, self.xmax = val
-#                self.ax.set_xlim(val)
+
+            elif key == 'xflip':
+                self.xflip = bool(val)
 
             elif key == 'xlog':
                 self.xlog = bool(val)
-#                if bool(val):
-#                    self.ax.set_xscale('log')
-#                    self.ax.minorticks_off()
-#                else:
-#                    self.ax.set_xscale('linear')
 
             elif key=='xticklabels':
                 self.xticklabels = val
-#                self.ax.set_xticklabels(val)
 
             elif key=='xticks':
                 self.xticks = val
-#                self.ax.set_xticks(val)
 
             elif key=='ylabel':
                 self.ylabel = helpers.tex(val)
-#                self.ax.set_ylabel( helpers.tex(val) )
 
             elif key=='ylims':
                 self.ymin, self.ymax = val
-#                self.ax.set_ylim(val)
+
+            elif key == 'yflip':
+                self.yflip = bool(val)
 
             elif key == 'ylog':
                 self.ylog = bool(val)
-#                if bool(val):
-#                    self.ax.set_yscale('log')
-#                    self.ax.minorticks_off()
-#                else:
-#                    self.ax.set_yscale('linear')
 
             elif key=='yticklabels':
                 self.yticklabels = val
-#                self.ax.set_yticklabels(val)
 
             elif key=='yticks':
                 self.yticks = val
-#                self.ax.set_yticks(val)
 
             else:
                 print('WARNING -- unrecognized style parameter', key)
@@ -254,6 +242,11 @@ class plotcell(object):
 
         self.ax.set_xlim( (self.xmin, self.xmax) )
         self.ax.set_ylim( (self.ymin, self.ymax) )
+
+        if self.xflip:
+            self.ax.invert_xaxis()
+        if self.yflip:
+            self.ax.invert_yaxis()
 
         if self.xlog:
             self.ax.set_xscale('log')
@@ -308,7 +301,15 @@ class plotcell(object):
             xyargs = args[:2] + args[3:]
             self.ax.plot(*xyargs, **kwargs)
 
-
+        # Draw the Earth, if applicable. 
+        if self.earth is not None:
+            # Look at the first character of the value to distinguish
+            # top/bottom/left/right for sunward. 
+            q0 = {'l':90, 'r':270, 't':0, 'b':180}[ self.earth[0] ]
+            dayside = Wedge( (0, 0), 1, q0,       q0 + 180, fc='w')
+            nightside = Wedge( (0, 0), 1, q0 + 180, q0 + 360, fc='k')
+            self.ax.add_artist(dayside)
+            self.ax.add_artist(nightside)
 
         '''
         f, l = ('left', 'right') if not self.flipx else ('right', 'left')
@@ -318,90 +319,6 @@ class plotcell(object):
         self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
         '''
         return
-
-
-
-
-# ######################################################################
-
-class cell(object):
-
-    bars, contours, lines, meshes = None, None, None, None
-
-    xlabel = None
-    xmin, xmax = None, None
-    xticks, xticklabels = None, None
-    xlog = None
-
-    ylabel = None
-    ymin, ymax = None, None
-    yticks, yticklabels = None, None
-    ylog = None
-
-    cmap = None
-    levels = None
-    norm = None
-
-    # ==================================================================
-
-    def __init__(self, ax):
-        self.ax = ax
-        self.bars = []
-        self.contours = []
-        self.lines = []
-        self.meshes = []
-        return
-
-    # ==================================================================
-
-    def bar(self, x, y, *args, **kwargs):
-        """Store a bar plot, to plot later."""
-        return self.bars.append( (x, y, args, kwargs) )
-
-    # ------------------------------------------------------------------
-
-    def contour(self, x, y, z, *args, **kwargs):
-        """Store a contour plot, to plot later."""
-        return self.contours.append( (x, y, z, args, kwargs) )
-
-    # ------------------------------------------------------------------
-
-    def line(self, x, y, *args, **kwargs):
-        """Store a line plot, to plot later."""
-        return self.lines.append( (x, y, args, kwargs) )
-
-    # ------------------------------------------------------------------
-
-    def mesh(self, x, y, z, *args, **kwargs):
-        """Store a mesh plot, to plot later."""
-        return self.meshes.append( (x, y, z, args, kwargs) )
-
-    # ==================================================================
-
-    def imax(self, i):
-        """Get the maximum in the given dimension of all bars, contours,
-        lines, and meshes this plot holds.
-        """
-        bmax = helpers.nax( (x, y, None)[i] for x, y, a, k in self.bars )
-        cmax = helpers.nax( (x, y, z)[i] for x, y, z, a, k in self.contours )
-        lmax = helpers.nax( (x, y, None)[i] for x, y, a, k in self.lines )
-        mmax = helpers.nax( (x, y, z)[i] for x, y, z, a, k in self.meshes )
-        return helpers.nax(bmax, cmax, lmax, mmax)
-
-    # ------------------------------------------------------------------
-
-    def imin(self, i):
-        """Get the minimum in the given dimension of all bars, contours,
-        lines, and meshes this plot holds.
-        """
-        bmin = helpers.nin( (x, y, None)[i] for x, y, a, k in self.bars )
-        cmin = helpers.nin( (x, y, z)[i] for x, y, z, a, k in self.contours )
-        lmin = helpers.nin( (x, y, None)[i] for x, y, a, k in self.lines )
-        mmin = helpers.nin( (x, y, z)[i] for x, y, z, a, k in self.meshes )
-        return helpers.nin(bmin, cmin, lmin, mmin)
-
-
-
 
 
 

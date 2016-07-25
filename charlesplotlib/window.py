@@ -86,8 +86,14 @@ class plotwindow:
     # Keep track of the default font size. 
     fontsize = None
 
+    # The intention is for all cells to share axes. 
 
     xlog, ylog, zlog = False, False, False
+
+    xmin, xmax = None, None
+    ymin, ymax = None, None
+    zmin, zmax = None, None
+
 
     # ==================================================================
     # =================================================== Initialization
@@ -312,6 +318,15 @@ class plotwindow:
             elif key == 'zlog':
                 self.zlog = bool(val)
 
+            elif key=='xlims':
+                self.xmin, self.xmax = val
+
+            elif key=='ylims':
+                self.ymin, self.ymax = val
+
+            elif key=='zlims':
+                self.zmin, self.zmax = val
+
             # Anything else gets forwarded to each cell. 
             else:
                 [ c.style( **{key:val} ) for c in self.cells.flatten() ]
@@ -332,7 +347,18 @@ class plotwindow:
     def draw(self, filename=None):
         global _savefmt, _savepath
 
-        axlims = [ ( self.imin(i), self.imax(i), self.ilog(i) ) for i in range(3) ]
+        # If the user has set these manually, stick with them. 
+
+        xmin = self.xmin if self.xmin is not None else self.imin(0)
+        xmax = self.xmax if self.xmax is not None else self.imax(0)
+        ymin = self.ymin if self.ymin is not None else self.imin(1)
+        ymax = self.ymax if self.ymax is not None else self.imax(1)
+        zmin = self.zmin if self.zmin is not None else self.imin(2)
+        zmax = self.zmax if self.zmax is not None else self.imax(2)
+
+        axlims = ( (xmin, xmax, self.xlog), 
+                   (ymin, ymax, self.ylog), 
+                   (zmin, zmax, self.zlog) )
 
         kwargs = axparams(*axlims, cax=self.fax)
 
@@ -378,6 +404,9 @@ class axparams(dict):
     def __init__(self, xlims, ylims, zlims, cax):
         global _ncolors, _nticks
 
+
+        print('xmin, xmax, xlog:', xlims)
+
         xparams = self.foo('x', *xlims)
         yparams = self.foo('y', *ylims)
 
@@ -399,9 +428,9 @@ class axparams(dict):
         else:
             cmap = tools.div_cmap(_ncolors)
 
-#        print('zmin:', zmin)
-#        print('zmax:', zmax)
-#        print('zlog:', zlog)
+        print('zmin:', zmin)
+        print('zmax:', zmax)
+        print('zlog:', zlog)
 
         # For positive linear color scales, space levels uniformly. If
         # the minimum is much less than the maximum, start at zero. 
@@ -423,7 +452,7 @@ class axparams(dict):
             # ticks and the number of colors. 
             zticks = np.linspace(zmin, zmax, _nticks)
         # For positive log scales, ticks go at powers of ten.
-        if zmin > 0 and zlog:
+        elif zmin > 0 and zlog:
             print('positive log')
             # Round up from the maximum and down from the minimum to the
             # next powers of ten. 
@@ -465,7 +494,7 @@ class axparams(dict):
         ColorbarBase( cax, cmap=cmap, ticks=zticks, 
                       norm=norm, orientation='horizontal' )
         # Tick labels can be formatted in a few ways. 
-        fmt = helpers.fmt_int if zlog else helpers.fmt_pow
+        fmt = helpers.fmt_pow if zlog else helpers.fmt_int
         cax.set_xticklabels( [ fmt(t) for t in zticks ] )
         # Return a dictionary of color params to be distributed to each
         # cell. This is how they all know what color scale to observe. 
@@ -490,8 +519,17 @@ class axparams(dict):
             ticklabels = [ helpers.fmt_pow(t) for t in ticks ]
         else:
             lims = ( int( np.floor(imin) ), int( np.ceil(imax) ) )
-            ticks = np.linspace(lims[0], lims[1], 5)
+
+
+            print(name + 'min, max:', lims)
+
+            ticks = sorted( np.linspace(lims[0], lims[1], 5) )
+
             ticklabels = [ helpers.fmt_int(t) for t in ticks ]
+
+            print(name + 'ticks:', ticks)
+            print(name + 'ticklabels:', ticklabels)
+
 
 
         return { name + 'ticks':ticks,

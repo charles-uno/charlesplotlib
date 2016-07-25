@@ -119,10 +119,6 @@ def flatten(*args):
         # If given a generator, evaluate it into a list. 
         l = list( args[0] )
 
-        
-
-
-
     pass
 
 
@@ -131,45 +127,19 @@ def values(*args):
     """Take several arguments, or a single sequence or generator, and
     return a flattened list of values. None-valued entries are trimmed. 
     """
-#    print('number of arguments:', len(args))
-#    print('What does the first argument look like? ')
-#    [ print('\t', x) for x in list( args[0] ) ]
-
+    # No arguments. 
     if len(args) == 0:
-
-        print('LENGTH 0')
-
         return []
     elif len(args) == 1:
         # We're dealing with a list/generator full of numbers. Or maybe
-        # full of arrays. Evaluate it, turn it into a
-        # (potentially-multidimensional) array, and flatten it down to a
-        # list of numbers.
-
-        print('LENGTH 1')
-
+        # full of arrays. Evaluate it, turn it into a (potentially
+        # multidimensional) array, and flatten it to a list of numbers.
         temp = np.array( list( args[0] ) ).flatten()
-
-        temp = np.array( [ x for x in temp if x is not None ] )
-
-        print(temp)
-
-        print( 'Shape of this array?', temp.shape )
-
-        vals = temp
-
-#        vals = sum( [ list(x) for x in args[0] ], [] )
-
-#        vals = np.array( list( args[0] ) ).flatten()
-
-        print(vals)
-
-        return [ x for x in vals if x is not None ]
-#        return [ x for x in list( args[0] ) if x is not None ]
+        return np.array( [ x for x in temp if x is not None ] )
     else:
+        # If given multiple arguments, assume they're numbers. 
 
-        print('LENGTH 2+')
-
+        # Safer would be to return sum( [ flatten([x]) for x in args ], [] ) with the None values pulled out. 
         return [ x for x in  args if x is not None ]
 
 # ----------------------------------------------------------------------
@@ -191,9 +161,6 @@ def ned(*args):
 def nin(*args):
     """Get the minimum of a possibly-empty list or generator."""
     vals = values(*args)
-
-    print( np.array(vals) )
-
     return np.min(vals) if len(vals) else None
 
 # ----------------------------------------------------------------------

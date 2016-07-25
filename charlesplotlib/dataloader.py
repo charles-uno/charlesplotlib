@@ -32,11 +32,57 @@ except ImportError:
 from . import helpers
 
 
+# ######################################################################
+# ################################################################# RBSP
+# ######################################################################
+
+def getpos(dl=0.5, dm=1, lmin=None, lmax=None):
+    """Go into the pos.txt file and grab the probe positions. Bin the
+    good data and return it in a format fit for a mesh plot. 
+    """
+    # Scale from five-minute chunks to half-hour events. 
+    secondsper = 1800.
+    # The orbit of both RBSP paths has been broken into five-minute
+    # chunks. Grab the position of each chunk which gives good data for
+    # E dot B = 0. 
+    pospath = '/home/charles/Desktop/RBSP/pos.txt'
+    poslines = [ x for x in helpers.read(pospath) if 'ok' in x ]
+    # Get the date range. 
+    dates = ( poslines[0].split()[1], poslines[-1].split()[1] )
+    # Chop out the position data, then cast it as an array of floats. 
+    poslist = [ x.split()[3:6] for x in poslines ]
+    pos = np.array(poslist, dtype=np.float)
+    # Figure out the histogram bounds. 
+    if lmin is None:
+        lmin = np.floor( np.min( pos[:, 0] ) )
+    if lmax is None:
+        lmax = np.ceil( np.max( pos[:, 0] ) )
+    # Center MLT bins on the hour, at least at midnight. 
+    mmin, mmax = -dm/2., 24 - dm/2.
+    # We want a bin to be centered at zero. That means anything between
+    # (24-dm/2) and 24 should be mapped to the range (-dm/2) to 0. 
+    posm = np.where( pos[:, 1] > mmax, pos[:, 1] - 24, pos[:, 1] )
+    # Number of bins in each direction. 
+    lbins = int( (lmax - lmin)/dl ) + 1
+    mbins = int( (mmax - mmin)/dm ) + 1
+    # Keyword arguments for the histogram2d call. 
+    hargs = { 'range':( (lmin, lmax), (mmin, mmax) ),
+              'bins':(lbins-1, mbins-1) }
+    # Bin bounds in terms of L and MLT. 
+    l, m = np.mgrid[lmin:lmax:lbins*1j, mmin:mmax:mbins*1j]
+    # Map to GSE coordinates. Put midnight at the bottom. 
+    x, y = -l*np.sin(2*np.pi*m/24.), -l*np.cos(2*np.pi*m/24.)
+    # Slice out the L coordinate and bin in L and MLT. Scale to days. 
+    h = np.histogram2d(pos[:, 0], posm, **hargs)[0]
+    z = 300*h/secondsper
+    # Return the position data. Total amount of usable time too. 
+    return { 'dates':dates, 'l':l, 'm':m, 'x':x, 'y':y, 'z':z,
+             'hargs':hargs }
 
 
-
-
-
+# ######################################################################
+# ################################################################# Tuna
+# ######################################################################
 
 class DataLoader(object):
     """This object is used for accessing Tuna's output. It keeps track

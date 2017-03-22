@@ -20,6 +20,12 @@ class Figure(object):
         self.lines = []
         return
 
+    def xlabel(self, text, *args, **kwargs):
+        return plt.xlabel(helpers.tex(text), *args, **kwargs)
+
+    def ylabel(self, text, *args, **kwargs):
+        return plt.ylabel(helpers.tex(text), *args, **kwargs)
+
     def line(self, *args, **kwargs):
         return self.lines.append( (args, kwargs) )
 

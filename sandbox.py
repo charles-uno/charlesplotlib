@@ -10,6 +10,7 @@
 
 import numpy as np
 import os
+import random
 import sys
 
 import charlesplotlib as cpl
@@ -26,14 +27,68 @@ def main():
 
 # ----------------------------------------------------------------------
 
+import matplotlib.pyplot as plt
+
+import cubehelix
+
 
 def scratch():
 
     fig = cpl.Figure()
 
-    fig.line( [1, 2, 3, 4, 5], [1, 3, 5, 3, 8] )
+    '''
+    n = 21
+    x, y = np.arange(n), np.arange(n)
+    z = np.zeros( (n, n) )
+    for i in range(n):
+        for j in range(n):
+            z[i, j] = random.uniform(0, 10)
+    cmap = cubehelix.cmap(startHue=240,endHue=-300,minSat=1,maxSat=2.5,minLight=.3,maxLight=.8,gamma=.9)
+    plt.pcolor(x, y, z, cmap=cmap)
+    plt.show()
+    return
+    '''
 
-    fig.draw()
+    data = load_season(2)
+
+    for name, scores in data.items():
+        print(name, '\t', scores)
+
+    cmap = cpl.helpers.seq_cmap()
+    cmap = cubehelix.cmap(startHue=240,endHue=-300,minSat=1,maxSat=2.5,minLight=.3,maxLight=.8,gamma=.9)
+
+    items = list( data.items() )
+
+    for i, (name, scores) in enumerate(items):
+        xvals = range(1, len(scores)+1)
+        color = cmap( i*1./len(items) )
+        fig.line(xvals, scores, color=color, label=name)
+
+    fig.xlabel('Episode')
+    fig.ylabel('Technical Rank')
+
+    return fig.draw()
+
+
+
+
+# ######################################################################
+
+def load_season(n):
+    scores = {}
+    for line in cpl.helpers.read('gbbo/s' + str(n) + '.txt'):
+        # Skip spacer lines. We don't need to explicitly track episodes,
+        # since each baker appears exactly once in each.
+        if not line:
+            continue
+        name, score = line.split()
+        if name not in scores:
+            scores[name] = []
+        scores[name].append( int(score) )
+    return scores
+
+
+
 
 
 

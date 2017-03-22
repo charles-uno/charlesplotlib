@@ -4,88 +4,47 @@
 
 # Spring 2016
 
-# ######################################################################
-# ############################################################# Synopsis
-# ######################################################################
-
-# Example driver for the Charlesplotlib plotting library. 
+# Example driver for the Charlesplotlib plotting library.
 
 # ######################################################################
-# ############################################################## Imports
-# ######################################################################
+
+import numpy as np
+import os
+import sys
 
 import charlesplotlib as cpl
-import numpy as np
 
-
-import os
-
-# ######################################################################
-# ################################################################# Main
 # ######################################################################
 
 def main():
 
-    return tunaplot()
+    return scratch()
 
     return contour()
 
-# ######################################################################
-# ################################################### Plotting Tuna Data
-# ######################################################################
-
-def tunaplot():
-
-    datapath = '/media/charles/My Passport/RUNS/JDRIVE_LPP_4/'
-
-    dl = cpl.DataLoader(datapath)
-
-    path = dl.get_path(azm=4, model=1, fdrive=0.010)
-
-    print(path)
-
-    r, q = dl.get_array(path, 'r'), dl.get_array(path, 'q')
-
-    x, z = r*np.sin(q), r*np.cos(q)
-
-    # Sanity check: plot the grid. 
-
-    pw = cpl.plotwindow(slope=0.8)
-
-    for i in range(0, x.shape[0], 50):
-        pw.line( x[i, :], z[i, :] )
-
-#    for k in range(0, x.shape[1], 50):
-#        pw.line( x[:, k], z[:, k] )
-
-    pw.draw()
-
-    return
-
 
 
 # ----------------------------------------------------------------------
 
 
+def scratch():
 
-# ----------------------------------------------------------------------
+    fig = cpl.Figure()
+
+    fig.line( [1, 2, 3, 4, 5], [1, 3, 5, 3, 8] )
+
+    fig.draw()
 
 
 
 
 
 
-# ######################################################################
-# ######################################################### Contour Plot
 # ######################################################################
 
 def flip(n=2):
     """Returns True one time out of n (default 2)."""
     return np.random.randint(n)==0
-
-
-
-
 
 def lims(scalemax):
     maybe_min = np.random.randint(scalemax)
@@ -97,7 +56,7 @@ def lims(scalemax):
 
 def zvals(n, scalemax=1000):
     scale = np.random.randint(scalemax)
-    # One time in four, make it negative. 
+    # One time in four, make it negative.
     if flip(4):
         return 2*scale*np.random.rand(n, n) - scale
     else:
@@ -107,11 +66,11 @@ def zvals(n, scalemax=1000):
 
 def contour():
 
-    # Let's do four plots. 
+    # Let's do four plots.
 
     # For each, figure out the domain. Magnitude no greater than 10.
-    # Each minimum has a 1 in 4 chancce of being negative (so they will
-    # all four be positive decently often). 
+    # Each minimum has a 1 in 4 chance of being negative (so they will
+    # all four be positive decently often).
 
     xlims = [ lims(1000) for _ in range(4) ]
     ylims = [ lims(1000) for _ in range(4) ]
@@ -141,8 +100,6 @@ def contour():
 
     if flip():
         pw.style(zlog=True)
-
-
 
     pw.draw()
 
@@ -195,5 +152,3 @@ def contour():
 
 if __name__=='__main__':
   main()
-
-

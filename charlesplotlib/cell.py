@@ -14,7 +14,7 @@
 
 import matplotlib
 import os
-# Allows use over SSH, even from a machine not running an xserver. 
+# Allows use over SSH, even from a machine not running an xserver.
 if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
     matplotlib.use('Agg')
 from matplotlib import gridspec, rc
@@ -40,27 +40,27 @@ class plotcell(object):
     # Keep lists of the data that's to be shown on this subplot.
     bars, contours, lines, meshes = None, None, None, None
     # Axis bounds. These are set by the plot window after all the data
-    # is entered. Typically, all cells share the same bounds. 
+    # is entered. Typically, all cells share the same bounds.
     xmin, xmax, xflip = None, None, None
     ymin, ymax, yflip = None, None, None
     # Axes can be log or linear. For the moment, at least, this is
     # specified by the user. It's hard to guess if an axis is supposed
-    # to be log scaled! 
+    # to be log scaled!
     xlog, ylog = False, False
     # Tick locations. These are set by the plot window -- after it asks
     # whether each axis is linear or log scaled.
     xticks, yticks = None, None
     # Tick labels are also set by the window. Only edge cells get them,
-    # so that the grid can be packed a bit tighter. 
+    # so that the grid can be packed a bit tighter.
     xticklabels, yticklabels = None, None
     # Axis labels. These are set by the user -- usually at the window
     # level, which automatically passes them to only the edge cells.
     xlabel, ylabel = None, None
     # All cells share a common color bar. To that end, color information
     # is passed to each cell by the plot window (after it figures out
-    # the appropriate scale, etc). 
+    # the appropriate scale, etc).
     cmap, levels, norm = None, None, None
-    # By default, do not draw Earth at the center of the plot. 
+    # By default, do not draw Earth at the center of the plot.
     earth = None
 
     # ==================================================================
@@ -71,12 +71,12 @@ class plotcell(object):
         """WIP..."""
         # For the moment, we take the axis object at initialization.
         # This can probably be pushed back to the draw() call, though,
-        # now that calls are rearranged. 
+        # now that calls are rearranged.
         self.ax = ax
         # Fire up lists to keep track of the data to be shown on this
         # cell. Any combination of bars, contours, lines, and meshes can
         # coexist (although the user doesn't have control over the order
-        # in which they are drawn). 
+        # in which they are drawn).
         self.bars, self.lines = [], []
         self.contours, self.meshes = [], []
         return
@@ -87,10 +87,9 @@ class plotcell(object):
 
     def bar(self, *args, **kwargs):
         """Store a bar plot, to plot later."""
-
         if len(args) < 2:
             raise ValueError('Bar plot must have at least two sequential arguments.')
-        # Add a dummy z value to make later comparisons easy. 
+        # Add a dummy z value to make later comparisons easy.
         xyzargs = args[:2] + (None,) + args[2:]
         return self.bars.append( (xyzargs, kwargs) )
 
@@ -108,7 +107,7 @@ class plotcell(object):
         """Store a line plot, to plot later."""
         if len(args) < 2:
             raise ValueError('Line plot must have at least two sequential arguments.')
-        # Add a dummy z value to make later comparisons easy. 
+        # Add a dummy z value to make later comparisons easy.
         xyzargs = args[:2] + (None,) + args[2:]
         return self.lines.append( (xyzargs, kwargs) )
 
@@ -234,7 +233,7 @@ class plotcell(object):
 #        self.style( **helpers.dslice(kwargs, axkeys) )
 
 
-        # Adjust the axes. 
+        # Adjust the axes.
         if self.xlabel:
             self.ax.set_xlabel(self.xlabel)
         if self.ylabel:
@@ -267,10 +266,10 @@ class plotcell(object):
         else:
             self.ax.set_yticklabels( () )
 
-        # Handle contours first, if any. 
+        # Handle contours first, if any.
         for args, kwargs in self.contours:
 
-            # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide). 
+            # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide).
             if 'cmap' not in kwargs:
                 kwargs['cmap'] = self.cmap
             if 'levels' not in kwargs:
@@ -278,10 +277,10 @@ class plotcell(object):
 
             self.ax.contourf(*args, **kwargs)
 
-        # Handle the color mesh, if any. 
+        # Handle the color mesh, if any.
         for args, kwargs in self.meshes:
 
-            # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide). 
+            # We want the user-supplied keywords to trump those provided by the plot window (though hopefully they will not collide).
             if 'cmap' not in kwargs:
                 kwargs['cmap'] = self.cmap
             if 'norm' not in kwargs:
@@ -289,22 +288,22 @@ class plotcell(object):
 
             self.ax.pcolormesh(*args, **kwargs)
 
-        # Draw the bar plots, if any. 
+        # Draw the bar plots, if any.
         for args, kwargs in self.bars:
-            # Get rid of the dummy argument we added in bar(). 
+            # Get rid of the dummy argument we added in bar().
             xyargs = args[:2] + args[3:]
             self.ax.bar(*xyargs, **kwargs)
 
-        # Draw the lines, if any. 
+        # Draw the lines, if any.
         for args, kwargs in self.lines:
-            # Get rid of the dummy argument we added in line(). 
+            # Get rid of the dummy argument we added in line().
             xyargs = args[:2] + args[3:]
             self.ax.plot(*xyargs, **kwargs)
 
-        # Draw the Earth, if applicable. 
+        # Draw the Earth, if applicable.
         if self.earth is not None:
             # Look at the first character of the value to distinguish
-            # top/bottom/left/right for sunward. 
+            # top/bottom/left/right for sunward.
             q0 = {'l':90, 'r':270, 't':0, 'b':180}[ self.earth[0] ]
             dayside = Wedge( (0, 0), 1, q0,       q0 + 180, fc='w')
             nightside = Wedge( (0, 0), 1, q0 + 180, q0 + 360, fc='k')
@@ -319,7 +318,3 @@ class plotcell(object):
         self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
         '''
         return
-
-
-
-

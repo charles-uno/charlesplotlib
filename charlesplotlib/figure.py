@@ -29,6 +29,19 @@ class Figure(object):
     def line(self, *args, **kwargs):
         return self.lines.append( (args, kwargs) )
 
+    def mark(self, *args, **kwargs):
+        args = ( (args[0],), (args[1],),) + args[2:]
+        if 'color' in kwargs:
+            kwargs['markeredgecolor'] = kwargs['color']
+        if 'marker' not in kwargs:
+            kwargs['marker'] = 'o'
+        kwargs['linestyle'] = 'None'
+        if 'size' in kwargs:
+            kwargs['markersize'] = kwargs.pop('size')
+        return self.line( [ args[0] ], [ args[1] ], *args[2:], **kwargs)
+
+
+
     def draw_lines(self):
         print(len(self.lines), 'lines to draw')
         for args, kwargs in self.lines:

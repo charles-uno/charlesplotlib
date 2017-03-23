@@ -36,36 +36,64 @@ def scratch():
 
     fig = cpl.Figure()
 
-    '''
-    n = 21
-    x, y = np.arange(n), np.arange(n)
-    z = np.zeros( (n, n) )
-    for i in range(n):
-        for j in range(n):
-            z[i, j] = random.uniform(0, 10)
-    cmap = cubehelix.cmap(startHue=240,endHue=-300,minSat=1,maxSat=2.5,minLight=.3,maxLight=.8,gamma=.9)
-    plt.pcolor(x, y, z, cmap=cmap)
-    plt.show()
-    return
-    '''
+    items = list( load_season(1).items() ) + list( load_season(2).items() ) + list( load_season(3).items() )
 
-    data = load_season(2)
+    def sortkey(x):
+        return x[1][0]
+    items = sorted(items, key=sortkey)
 
-    for name, scores in data.items():
+    for name, scores in items:
         print(name, '\t', scores)
 
-    cmap = cpl.helpers.seq_cmap()
-    cmap = cubehelix.cmap(startHue=240,endHue=-300,minSat=1,maxSat=2.5,minLight=.3,maxLight=.8,gamma=.9)
+    cmap = cubehelix.cmap(
+        startHue=0,
+        endHue=600,
+        minSat=1,
+        maxSat=2.5,
+        minLight=0.2,
+        maxLight=0.8,
+    )
 
-    items = list( data.items() )
+    fig.xlabel('Episode 1 Technical Rank')
+    fig.ylabel('Number of Episodes Survived')
 
     for i, (name, scores) in enumerate(items):
         xvals = range(1, len(scores)+1)
-        color = cmap( i*1./len(items) )
-        fig.line(xvals, scores, color=color, label=name)
+        color = cmap( i*1./(len(items)+1) )
+        fig.mark(scores[0], len(scores), size=12, color=color)
 
-    fig.xlabel('Episode')
-    fig.ylabel('Technical Rank')
+    nepisodes = max( len(s) for n, s in items )
+    nbakers = max( s[0] for n, s in items )
+    plt.xlim( [0.5, nepisodes + 0.5] )
+    plt.ylim( [0.5, nbakers + 0.5] )
+
+    return fig.draw()
+
+
+
+
+
+
+    cmap = cpl.helpers.seq_cmap()
+
+#    cmap = plt.get_cmap('plasma')
+
+    for i, (name, scores) in enumerate(items):
+        xvals = range(1, len(scores)+1)
+        color = cmap( i*1./(len(items)+1) )
+        fig.line(xvals, scores, color=color, label=name, linewidth=3)
+
+    for i, (name, scores) in enumerate(items):
+        xvals = range(1, len(scores)+1)
+        color = cmap( i*1./(len(items)+1) )
+        fig.line(xvals, scores, linestyle='None', marker='o', markersize=12, color=color, markeredgecolor=color)
+
+    xmax = max( len(s) for n, s in items )
+    ymax = len(items)
+
+    plt.xlim( [0.5, xmax + 0.5] )
+    plt.ylim( [0.5, ymax + 0.5] )
+
 
     return fig.draw()
 
@@ -84,6 +112,10 @@ def load_season(n):
         name, score = line.split()
         if name not in scores:
             scores[name] = []
+
+        if not score.isdigit():
+            score = 5.5
+
         scores[name].append( int(score) )
     return scores
 

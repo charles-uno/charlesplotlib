@@ -34,71 +34,87 @@ import cubehelix
 
 def scratch():
 
+
+    '''
+    This syntax looks nice, I think:
+
+    fig.title = 'Title'
+    fig.xlabel = 'Horizontal Axis Label'
+    fig.xmin, fig.xmax = 1, 100
+    fig.xlog = True
+    fig.ncolors = 13
+    fig.nticks = 5
+
+    What all do we need?
+
+    title
+    xlabel, ylabel
+    zlabel/zunits
+    xmin, xmax, xlog
+    ymin, ymax, ylog
+    zmin, zmax, zlog
+    xticks, yticks, zticks
+    (labels are formatted nicely automatically)
+
+
+    Maybe print a warning if nticks doesn't divide nicely into ncolors?
+
+    Nice-looking plots have ticks at integers. That seems like a safe assumption for the x and y axes.
+
+    How about the z axis?
+
+    How about handling of log axes?
+
+    Come up with a sample bullseye plot.
+    '''
+
+
     fig = cpl.Figure()
 
-    items = list( load_season(1).items() ) + list( load_season(2).items() ) + list( load_season(3).items() )
+    n = 5
 
-    def sortkey(x):
-        return x[1][0]
-    items = sorted(items, key=sortkey)
+    xvals = list( range(n) )
+    yvals = list( range(n) )
 
-    for name, scores in items:
-        print(name, '\t', scores)
+    zvals = 10*np.random.rand(n, n)
 
-    cmap = cubehelix.cmap(
-        startHue=0,
-        endHue=600,
-        minSat=1,
-        maxSat=2.5,
-        minLight=0.2,
-        maxLight=0.8,
-    )
+    fig.mesh(xvals, yvals, zvals)
 
+    fig.title('Title')
+
+    fig.xlabel('Horizontal Axis Label')
+    fig.ylabel('Vertical Axis Label')
+
+
+    return fig.draw()
+
+
+
+def gbbo():
+    fig = cpl.Figure()
+    seasons = [ load_season(i) for i in (2, 3, 4, 5) ]
     fig.xlabel('Episode 1 Technical Rank')
     fig.ylabel('Number of Episodes Survived')
-
-    for i, (name, scores) in enumerate(items):
-        xvals = range(1, len(scores)+1)
-        color = cmap( i*1./(len(items)+1) )
-        fig.mark(scores[0], len(scores), size=12, color=color)
-
-    nepisodes = max( len(s) for n, s in items )
-    nbakers = max( s[0] for n, s in items )
-    plt.xlim( [0.5, nepisodes + 0.5] )
-    plt.ylim( [0.5, nbakers + 0.5] )
-
-    return fig.draw()
-
-
-
-
-
-
     cmap = cpl.helpers.seq_cmap()
-
-#    cmap = plt.get_cmap('plasma')
-
-    for i, (name, scores) in enumerate(items):
-        xvals = range(1, len(scores)+1)
-        color = cmap( i*1./(len(items)+1) )
-        fig.line(xvals, scores, color=color, label=name, linewidth=3)
-
-    for i, (name, scores) in enumerate(items):
-        xvals = range(1, len(scores)+1)
-        color = cmap( i*1./(len(items)+1) )
-        fig.line(xvals, scores, linestyle='None', marker='o', markersize=12, color=color, markeredgecolor=color)
-
-    xmax = max( len(s) for n, s in items )
-    ymax = len(items)
-
-    plt.xlim( [0.5, xmax + 0.5] )
-    plt.ylim( [0.5, ymax + 0.5] )
-
-
+    for i, season in enumerate(seasons):
+        names = sorted( season.keys() )
+        ranks = [ season[x][0] for x in names ]
+        episodes = [ len( season[x] ) for x in names ]
+        color = ('r', 'b', 'g', 'm', 'c')[i]
+        ranks = [ x + 0.1*pmx(i) for x in ranks ]
+        episodes = [ x + 0.1*pmy(i) for x in episodes ]
+        label = cpl.helpers.tex( 'Series ' + str(i+2) )
+        fig.dots(ranks, episodes, color=color, label=label)
+    fig.title('Off to a Strong Start?')
+    plt.xlim( [0.5, 12.5] )
+    plt.ylim( [0.5, 10.5] )
     return fig.draw()
 
+def pmx(i):
+    return +1 if i%2 else -1
 
-
+def pmy(i):
+    return +1 if (i//2)%2 else -1
 
 # ######################################################################
 
@@ -112,11 +128,11 @@ def load_season(n):
         name, score = line.split()
         if name not in scores:
             scores[name] = []
-
-        if not score.isdigit():
+        if score.isdigit():
+            score = int(score)
+        else:
             score = 5.5
-
-        scores[name].append( int(score) )
+        scores[name].append(score)
     return scores
 
 

@@ -6,6 +6,10 @@ from matplotlib.colors import BoundaryNorm
 from matplotlib.colorbar import ColorbarBase
 import numpy as np
 
+import sys
+import datetime as dt
+
+
 class Figure(object):
 
     lines = None
@@ -15,7 +19,7 @@ class Figure(object):
 
     def __init__(self):
         # LaTeX fonts.
-        rc('font', family='sans-serif', size='12')
+        rc('font', family='sans-serif', size='14')
         rc('text', usetex=True)
         rc('text.latex', preamble='\\usepackage{amsmath},\\usepackage{amssymb},\\usepackage{color}')
         # White background. Size is (width, height).
@@ -29,22 +33,32 @@ class Figure(object):
         plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
 
         # Title axis.
-        self.tax = plt.subplot( tiles[4:6, 2:-2] )
+        self.tax = plt.subplot( tiles[4:6, 3:-3] )
         self.tax.axis('off')
         self.tax.set_xticks( [] )
         self.tax.set_yticks( [] )
 
         # Legend/label axis.
-        self.lax = plt.subplot( tiles[1:3, 2:-2] )
+        self.lax = plt.subplot( tiles[1:3, 3:-3] )
         self.lax.set_xticks( [] )
         self.lax.set_yticks( [] )
 
         # Data axis.
-        self.dax = plt.subplot( tiles[7:28, 2:-2] )
+        self.dax = plt.subplot( tiles[7:27, 3:-3] )
 
         self.lines = []
         self.meshes = []
         return
+
+    # ------------------------------------------------------------------
+
+    def xticks(self, ticks):
+        self.dax.set_xticks(ticks)
+
+    # ------------------------------------------------------------------
+
+    def yticks(self, ticks):
+        self.dax.set_yticks(ticks)
 
     # ------------------------------------------------------------------
 
@@ -94,11 +108,14 @@ class Figure(object):
             bbox_to_anchor=self.lax.get_position(),
             mode='expand',
             bbox_transform=plt.gcf().transFigure,
-            borderaxespad=0,
+            borderaxespad=0.3,
             frameon=False,
-            handletextpad=-0.1,
+            handletextpad=-0.4,
+
         )
         return
+
+    # ------------------------------------------------------------------
 
     def draw_meshes(self):
         print(len(self.meshes), 'meshes to draw')
@@ -140,11 +157,18 @@ class Figure(object):
 
         return
 
+    # ------------------------------------------------------------------
 
-#        fmt = helpers.fmt_pow if zlog else helpers.fmt_int
-#        cax.set_xticklabels( [ fmt(t) for t in zticks ] )
-
-
+    def text(self, text):
+        return self.dax.text(
+            s=helpers.tex(text),
+            x=0.5,
+            y=0.5,
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.dax.transAxes
+#            fontsize=12,
+        )
 
     # ------------------------------------------------------------------
 
@@ -160,7 +184,14 @@ class Figure(object):
 
     # ------------------------------------------------------------------
 
-    def draw(self):
+    def draw(self, filename=None):
         self.draw_lines()
         self.draw_meshes()
-        return plt.show()
+        if '--save' in sys.argv and filename is not None:
+            plotspath = '/home/charles/Desktop/plots/'
+            timestamp = dt.datetime.now().strftime('%Y%m%d%H%M%S')
+            filepath = plotspath + timestamp + '_' + filename
+            print('Saving', filepath, '...')
+            return plt.savefig(filepath)
+        else:
+            return plt.show()

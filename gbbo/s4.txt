@@ -1,0 +1,87 @@
+Ali 11
+Beca 8
+Christine 3
+Deborah 9
+Frances 7
+Glenn 4
+Howard 6
+Kimberley 10
+Lucy 2
+Mark 5
+Robert 1
+Ruby 12
+Toby 13
+
+Ali 9
+Beca 11
+Christine 4
+Deborah 8
+Frances 2
+Glenn 7
+Howard 10
+Kimberley 1
+Lucy 12
+Mark 6
+Robert 5
+Ruby 3
+
+Ali 5
+Beca 10
+Christine 4
+Deborah 9
+Frances 8
+Glenn 1
+Howard 7
+Kimberley 6
+Mark 11
+Robert 2
+Ruby 3
+
+Ali 8
+Beca 2
+Christine 7
+Frances 1
+Glenn 9
+Howard 5
+Kimberley 4
+Robert 3
+Ruby 6
+
+Beca 5
+Christine 1
+Frances 3
+Glenn 2
+Howard 8
+Kimberley 7
+Robert 4
+Ruby 6
+
+Beca 6
+Christine 4
+Frances 2
+Glenn 5
+Howard 7
+Kimberley 3
+Ruby 1
+
+Beca 1
+Christine 6
+Frances 5
+Glenn 3
+Kimberley 4
+Ruby 2
+
+Beca 4
+Christine 5
+Frances 3
+Kimberley 2
+Ruby 1
+
+Beca 3
+Frances 2
+Kimberley 1
+Ruby 4
+
+Frances 3
+Kimberley 1
+Ruby 2

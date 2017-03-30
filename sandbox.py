@@ -19,6 +19,8 @@ import charlesplotlib as cpl
 
 def main():
 
+    return gbbo(2)
+
     return scratch()
 
     return contour()
@@ -33,7 +35,6 @@ import cubehelix
 
 
 def scratch():
-
 
     '''
     This syntax looks nice, I think:
@@ -56,7 +57,6 @@ def scratch():
     xticks, yticks, zticks
     (labels are formatted nicely automatically)
 
-
     Maybe print a warning if nticks doesn't divide nicely into ncolors?
 
     Nice-looking plots have ticks at integers. That seems like a safe assumption for the x and y axes.
@@ -67,48 +67,74 @@ def scratch():
 
     Come up with a sample bullseye plot.
     '''
-
-
     fig = cpl.Figure()
-
     n = 5
-
     xvals = list( range(n) )
     yvals = list( range(n) )
-
     zvals = 10*np.random.rand(n, n)
-
     fig.mesh(xvals, yvals, zvals)
-
     fig.title('Title')
-
     fig.xlabel('Horizontal Axis Label')
     fig.ylabel('Vertical Axis Label')
-
-
-    return fig.draw()
+    return fig.draw('test.png')
 
 
 
-def gbbo():
+def gbbo(n):
     fig = cpl.Figure()
-    seasons = [ load_season(i) for i in (2, 3, 4, 5) ]
-    fig.xlabel('Episode 1 Technical Rank')
+    seasons = { i:load_season(i) for i in (2, 3, 4, 5) }
+    fig.xlabel('Episode ' + str(n) + ' Technical Rank')
     fig.ylabel('Number of Episodes Survived')
     cmap = cpl.helpers.seq_cmap()
-    for i, season in enumerate(seasons):
+    # Combine all the data into a single list so we can fit it.
+    allranks, allepisodes = [], []
+    # Plot the seasons one at a time, each in a different color.
+    for i, season in seasons.items():
         names = sorted( season.keys() )
-        ranks = [ season[x][0] for x in names ]
-        episodes = [ len( season[x] ) for x in names ]
-        color = ('r', 'b', 'g', 'm', 'c')[i]
+        # If not looking at the first episode, some of the bakers will
+        # not have a score, because they've already been eliminated.
+        ranks, episodes = [], []
+        for name in names:
+            if len( season[name] ) < n:
+                continue
+            ranks.append( season[name][n-1] )
+            episodes.append( len( season[name] ) )
+        color = ('k', 'y', 'r', 'b', 'g', 'm', 'c')[i]
         ranks = [ x + 0.1*pmx(i) for x in ranks ]
         episodes = [ x + 0.1*pmy(i) for x in episodes ]
-        label = cpl.helpers.tex( 'Series ' + str(i+2) )
+        label = cpl.helpers.tex( 'Series ' + str(i) )
         fig.dots(ranks, episodes, color=color, label=label)
-    fig.title('Off to a Strong Start?')
-    plt.xlim( [0.5, 12.5] )
+        allranks.extend(ranks)
+        allepisodes.extend(episodes)
+    # Perform a linear fit, and get an R squared value.
+    allranks = np.array(allranks)
+    allepisodes = np.array(allepisodes)
+    p = np.polyfit(allranks, allepisodes, 1)
+    # If we don't sort the values, the line renders poorly.
+    xvals = np.array( sorted(allranks) )
+    yvals = p[0]*xvals + p[1]
+    fig.line(xvals, yvals, color='k')
+    # Compute R squared, per Wikipedia.
+    ybar = np.mean(allepisodes)
+    sstot = np.sum( (allepisodes - ybar)**2 )
+    ssreg = np.sum( (yvals - ybar)**2 )
+    # Stick it in the middle of the plot.
+    rlabel = 'R^2\\!=\\!' + format(ssreg/sstot, '.2f')
+    fig.text(rlabel)
+
+    if n == 1:
+        fig.title('Episode 1: No Particular Correlation')
+    elif n == 2:
+        fig.title('Episode 2: Cream Rises to the Top')
+#        fig.title('Episode 2: Now with $p$-Hacking')
+
+    plt.xlim( [0.5, 13.5] )
     plt.ylim( [0.5, 10.5] )
-    return fig.draw()
+
+    fig.xticks( [1, 4, 7, 10, 13] )
+    fig.yticks( [1, 4, 7, 10] )
+
+    return fig.draw('ep' + str(n) + '.png')
 
 def pmx(i):
     return +1 if i%2 else -1

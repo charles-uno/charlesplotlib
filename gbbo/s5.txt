@@ -1,0 +1,82 @@
+Chetna 3
+Claire 8
+Diana 5
+Enwezor 9
+Iain 4
+Jordan 12
+Kate 6
+Luis 7
+Martha 2
+Nancy 1
+Norman 11
+Richard 10
+
+Chetna 8
+Diana 7
+Enwezor 9
+Iain 11
+Jordan 6
+Kate 4
+Luis 3
+Martha 5
+Nancy 2
+Norman 10
+Richard 1
+
+Chetna 8
+Diana 7
+Iain 9
+Jordan 10
+Kate 1
+Luis 2
+Martha 3
+Nancy 5
+Norman 4
+Richard 6
+
+Chetna 3
+Diana 9
+Iain 6
+Kate 7
+Luis 2
+Martha 1
+Nancy 4
+Norman 8
+Richard 5
+
+Chetna 2
+Kate 3
+Luis 6
+Martha 1
+Nancy 4
+Norman 5
+Richard 7
+
+Chetna 2
+Kate 6
+Luis 3
+Martha 4
+Nancy 1
+Richard 5
+
+Chetna 6
+Kate 4
+Luis 5
+Martha 3
+Nancy 2
+Richard 1
+
+Chetna 1
+Luis 2
+Martha 5
+Nancy 3
+Richard 4
+
+Chetna 4
+Luis 1
+Nancy 3
+Richard 2
+
+Luis 2
+Nancy 1
+Richard 3

@@ -1,0 +1,84 @@
+Alvin 2
+Dorret 5
+Flora 6
+Ian 8
+Marie 3
+Mat 7
+Nadiya 12
+Paul 10
+Sandy 9
+Stu 11
+Tamal 4
+Ugne 1
+
+Alvin 6
+Dorret 1
+Flora 2
+Ian 3
+Marie 11
+Mat 5
+Nadiya 9
+Paul 10
+Sandy 4
+Tamal 8
+Ugne 7
+
+Alvin 4
+Dorret 6
+Flora 2
+Ian 1
+Mat 8
+Nadiya 9
+Paul 10
+Sandy 7
+Tamal 3
+Ugne 5
+
+Alvin 9
+Flora 3
+Ian 4
+Mat 7
+Nadiya 8
+Paul 1
+Sandy 6
+Tamal 5
+Ugne 2
+
+Alvin 8
+Flora 3
+Ian 5
+Mat 4
+Nadiya 1
+Paul 2
+Tamal 7
+Ugne 6
+
+Alvin 6
+Flora 2
+Ian 3
+Mat 1
+Nadiya 4
+Paul 5
+Tamal 7
+
+Flora 4
+Ian 5
+Mat 6
+Nadiya 1
+Paul 2
+Tamal 3
+
+Flora 3
+Ian 2
+Nadiya 1
+Paul 5
+Tamal 4
+
+Flora 1
+Ian 3
+Nadiya 4
+Tamal 2
+
+Ian 2
+Nadiya 1
+Tamal 3

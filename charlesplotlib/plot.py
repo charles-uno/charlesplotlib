@@ -1,0 +1,307 @@
+
+import datetime as dt
+import matplotlib.pyplot as plt
+from matplotlib import gridspec, rc
+from matplotlib.colors import BoundaryNorm
+from matplotlib.colorbar import ColorbarBase
+import matplotlib.patheffects as PathEffects
+from matplotlib import patches
+import numpy as np
+import sys
+
+from . import helpers
+
+# ######################################################################
+
+class Plot(object):
+
+    title = None
+
+    xticks, yticks, zticks = None, None, None
+    xlabel, ylabel, zlabel = None, None, None
+
+    xlims, ylims, zlims = None, None, None
+
+    clabels, rlabels = None, None
+
+    _colorbar = True
+
+    def __init__(self, rows=1, cols=1):
+        # LaTeX fonts.
+        rc('font', family='sans-serif', size='14')
+        rc('text', usetex=True)
+        rc('text.latex', preamble='\\usepackage{amsmath},\\usepackage{amssymb},\\usepackage{color}')
+        self._rows, self._cols = rows, cols
+
+        self.subplots = np.empty( [rows, cols], dtype=object )
+
+        for i in range(rows):
+            for j in range(cols):
+                self.subplots[i, j] = Subplot()
+
+
+
+        return
+
+
+
+    def __getitem__(self, key):
+
+        if isinstance(key, int):
+            return self.subplots.flatten()[key]
+        else:
+            return self.subplots[key]
+
+
+    def drawmesh(self):
+
+        if not any( x.meshes for x in self.dax ):
+            return
+
+        self._colorbar = True
+
+
+        self.bax.xaxis.tick_top()
+
+        self.bax.set_xticklabels( [ helpers.fmt_int(x) for x in zticks ] )
+
+        for args, kwargs in self.meshes:
+            self.dax.pcolormesh(
+                *args,
+                cmap=cmap,
+                norm=norm,
+            )
+
+
+
+    def getnorm(self):
+
+        if not any( x.meshes for x in self.subplots.flatten() ):
+            self._colorbar = False
+            return None
+
+        self._colorbar = True
+
+        self.cmap = helpers.seq_cmap()
+
+        zmin, zmax = 0, 12
+
+        ncolors = 13
+        nticks = 5
+        zlvlstep = (zmax - zmin)/(ncolors - 1.)
+        zlvlmin = zmin - 0.5*zlvlstep
+        zlvlmax = zmax + 0.5*zlvlstep
+        zlevels = np.linspace(zlvlmin, zlvlmax, ncolors + 1)
+        self.zticks = np.linspace(zmin, zmax, nticks)
+
+        return BoundaryNorm(zlevels, self.cmap.N)
+
+
+
+    def draw(self, filename=None):
+
+        norm = self.getnorm()
+
+        axdict = getaxes(rows=self._rows, cols=self._cols, colorbar=self._colorbar)
+        self.__dict__.update(axdict)
+
+        if norm:
+
+            ColorbarBase(
+                self.bax,
+                cmap=self.cmap,
+                ticks=self.zticks,
+                norm=norm,
+                orientation='horizontal',
+            )
+            self.bax.xaxis.tick_top()
+
+        kwargs = dict(
+                x=0.5,
+                y=0.5,
+                horizontalalignment='center',
+                verticalalignment='center',
+        )
+
+        if self.xticks:
+            xlims = min(self.xticks), max(self.xticks)
+            [ x.set_xticks(self.xticks) for x in self.dax.flatten() ]
+            [ x.set_xlim(xlims) for x in self.dax.flatten() ]
+
+        if self.title:
+            self.tax.text(s=helpers.tex(self.title), fontsize=24, **kwargs)
+
+        if self.xlabel:
+            self.xax.text(s=helpers.tex(self.xlabel), fontsize=18, **kwargs)
+
+        if self.ylabel:
+            self.yax.text(s=helpers.tex(self.ylabel), fontsize=18, rotation=90, **kwargs)
+
+        if self.clabels:
+            [ x.text(s=helpers.tex(y), **kwargs) for x, y in zip(self.cax, self.clabels) ]
+
+        if self.rlabels:
+            [ x.text(s=helpers.tex(y), **kwargs) for x, y in zip(self.rax, self.rlabels) ]
+
+        if self.xlims:
+            [ x.set_xlim(self.xlims) for x in self.dax.flatten() ]
+
+        if self.xticks:
+            [ x.set_xticks(self.xticks) for x in self.dax.flatten() ]
+
+        if self.ylims:
+            [ x.set_ylim(self.ylims) for x in self.dax.flatten() ]
+
+        if self.yticks:
+            [ x.set_yticks(self.yticks) for x in self.dax.flatten() ]
+
+        for sp, ax in zip( self.subplots.flatten(), self.dax.flatten() ):
+            kwargs = {'cmap':self.cmap, 'norm':norm, 'ax':ax}
+            sp.draw(**kwargs)
+
+        return plt.show()
+
+# ======================================================================
+
+def getaxes(rows=1, cols=1, colorbar=None):
+    # Figure out how much space we need for the subplots.
+    wcell, hcell, pad, bigpad = 100, 100, 6, 12
+    htitle = pad
+    wcells = cols*(wcell + pad) - pad
+    hcells = rows*(hcell + pad) - pad
+
+    # Make room for the color bar or legend, if necessary.
+    if colorbar:
+        hbar, barpad = bigpad, bigpad
+    else:
+        hbar, barpad = 0, 0
+
+    # Sizes for the axis labels.
+    hlabel, wlabel = pad, pad
+
+    # If we have multiple columns, we'll want column labels.
+    if cols > 1:
+        hclab, clabpad = hlabel, pad
+    else:
+        hclab, clabpad = 0, 0
+
+    # If we have multiple rows, we'll want row labels.
+    if rows > 1:
+        wrlab, rlabpad = bigpad, bigpad
+    else:
+        wrlab, rlabpad = 0, 0
+
+    hgrid = barpad + hbar + pad + htitle + pad + hclab + clabpad + hcells + bigpad + hlabel + pad
+    wgrid = pad + wlabel + bigpad + wcells + rlabpad + wrlab + pad
+
+    # White background. Size is (width, height). Scale the window so the tiles proportion true.
+    hfig, wfig = 8, 8*wgrid/hgrid
+
+    plt.figure(figsize=(wfig, hfig), facecolor='w')
+    # Tiles are (height, width).
+    tiles = gridspec.GridSpec(hgrid, wgrid)
+    plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
+
+    axdict = {}
+
+    # At the top is the colorbar/label axis.
+    top = barpad
+    bot = top + hbar
+    left = pad + wlabel + bigpad
+    right = -(pad + wrlab + rlabpad)
+    bax = plt.subplot( tiles[top:bot, left:right] )
+    bax.set_xticks( [] ), bax.set_yticks( [] )
+    axdict['bax'] = bax
+
+    # Right below that is the title axis.
+    top = pad + hbar + barpad
+    bot = top + htitle
+    left = pad + wlabel + bigpad
+    right = -(pad + wrlab + rlabpad)
+    tax = plt.subplot( tiles[top:bot, left:right] )
+    tax.axis('off')
+    axdict['tax'] = tax
+
+    # Under that are the column labels.
+    top = pad + hbar + barpad + htitle + pad
+    bot = top + hlabel
+    cax = np.empty( [cols], dtype=object )
+    for i in range(cols):
+        left = pad + wlabel + bigpad + i*(wcell + pad)
+        right = left + wcell
+        cax[i] = plt.subplot( tiles[top:bot, left:right] )
+    [ x.axis('off') for x in cax ]
+    axdict['cax'] = cax
+
+    # On the left we have an axis for the vertical label.
+    top = pad + hbar + barpad + htitle + pad + hlabel + pad
+    bot = top + hcells
+    left, right = pad, pad + wlabel
+    yax = plt.subplot( tiles[top:bot, left:right] )
+    yax.axis('off')
+    axdict['yax'] = yax
+
+    # To the right of the data we have row labels.
+    rax = np.empty( [rows], dtype=object )
+    right = -pad
+    left = right - wrlab
+    for j in range(rows):
+        top = bigpad + hbar + barpad + htitle + pad + hclab + clabpad + j*(hcell + pad)
+        bot = top + hcell
+        rax[j] = plt.subplot( tiles[top:bot, left:right] )
+    [ x.axis('off') for x in rax ]
+    axdict['rax'] = rax
+
+    # In the middle, we have the actual data axes themselves.
+    dax = np.empty( [rows, cols], dtype=object )
+    for i in range(rows):
+        top = pad + hbar + barpad + htitle + pad + hclab + clabpad + i*(hcell + pad)
+        bot = top + hcell
+        for j in range(cols):
+            left = pad + wlabel + bigpad + j*(wcell + pad)
+            right = left + wcell
+            dax[i, j] = plt.subplot( tiles[top:bot, left:right] )
+    [ x.set_xticklabels( [] ) for x in dax[:-1, :].flatten() ]
+    [ x.set_yticklabels( [] ) for x in dax[:, 1:].flatten() ]
+    axdict['dax'] = dax
+
+    # Finally, under the data, we have an axis for the horizontal label.
+    bot = -pad
+    top = bot - hlabel
+    left = pad + wlabel + bigpad
+    right = left + wcells
+    xax = plt.subplot( tiles[top:bot, left:right] )
+    xax.axis('off')
+    axdict['xax'] = xax
+
+    return axdict
+
+
+
+# ######################################################################
+
+class Subplot(object):
+
+
+    def __init__(self):
+        self.meshes = []
+        return
+
+    def mesh(self, *args, **kwargs):
+        self.meshes.append( (args, kwargs) )
+
+    def draw(self, **kwargs):
+        for a, k in self.meshes:
+            kwargs['ax'].pcolormesh(
+                *a,
+                cmap=kwargs['cmap'],
+                norm=kwargs['norm'],
+#                levels=zlevels,
+            )
+        return
+
+    # ------------------------------------------------------------------
+
+    def draw_meshes(self):
+
+        return

@@ -15,17 +15,154 @@ import sys
 
 import charlesplotlib as cpl
 
+
+# http://seaborn.pydata.org/_images/color_palettes_8_0.png
+
+# https://github.com/mwaskom/seaborn/blob/master/seaborn/palettes.py
+
+
 # ######################################################################
+
+_seasons = (3, 4, 5, 6, 7)
 
 def main():
 
-    return gbbo(2)
+
+
+    return cyclers()
+
+
+
+    return gbbo(1)
 
     return scratch()
 
     return contour()
 
 
+# ----------------------------------------------------------------------
+
+def cyclers():
+
+    plot = cpl.Plot(rows=1, cols=3)
+
+    plot.title = 'Title'
+
+    plot.xlabel = 'Number of Lands'
+
+    plot.xlims = (12.5, 19.5)
+    plot.xticks = (13, 15, 17, 19)
+
+    plot.ylims = (-0.5, 6.5)
+    plot.yticks = (0, 2, 4, 6)
+
+    plot.ylabel = 'Number of Cyclers'
+
+    plot.clabels = (
+        'Hit 3 land drops',
+        'Hit 4 land drops',
+        'Hit 5 land drops',
+    )
+
+    xvals = 13 + np.arange(8)
+    yvals = np.arange(8)
+    for i in range(3):
+        zvals = 10*np.random.rand(7, 7)
+
+        plot[i].mesh(xvals-0.5, yvals-0.5, zvals)
+
+
+
+
+
+    return plot.draw()
+
+
+    fig = cpl.Figure()
+    xvals = list( i - 0.5 for i in range(13, 21) )
+    yvals = list( i - 0.5 for i in range(0, 8) )
+
+    zvals = 10*np.random.rand(7, 7)
+
+    for i, x in enumerate( xvals[:-1] ):
+        for j, y in enumerate( yvals[:-1] ):
+
+            nlands, ncyclers = int(x+0.5), int(y+0.5)
+
+            fig.dots( [x+0.5], [y+0.5], size=35, color='w' )
+
+            zvals[j, i] = curve(4, nlands, ncyclers)*100
+
+            print('with', nlands, 'lands and', ncyclers, 'cyclers:', zvals[i, j])
+
+            fig.text(format(zvals[j, i], '.0f') + '\%', x=x+0.5, y=y+0.5, datacoords=True)
+#            fig.text(format(zvals[i, j], '.1f'), x=x+0.5, y=y+0.5, datacoords=True, weight='bold', shadow='w')
+
+#    zvals[1:2, :] = 0
+
+
+    fig.mesh(xvals, yvals, zvals)
+
+    fig.title('Title')
+    fig.xlabel('Number of Lands')
+
+    fig.xlims( (12.5, 19.5) )
+    fig.ylims( (-0.5, 6.5) )
+
+    fig.zlims( (0, 100) )
+
+
+    fig.ylabel('Number of Cyclers')
+
+
+
+
+
+    return fig.draw('test.png')
+
+
+
+    '''
+    fig = cpl.Figure(rows=3, cols=3)
+    fig.xticks = (13, 15, 17, 19)
+    fig.xlabel = 'Horizontal Axis Label'
+    fig.ylabel = 'Vertical Axis Label'
+    fig.title = 'Figure Title'
+    return fig.draw('test.png')
+    '''
+
+
+
+
+def curve(nturns, nlands, ncyclers=0):
+    # What are the odds of hitting your lands on curve for this many turns on the play?
+
+    # Total number of possible draws.
+    ztotal = choose(40 - ncyclers, 6 + nturns)
+
+    # Tally up the odds of getting at least this many lands.
+    tally = 0
+    for n in range(nturns, 7+nturns):
+        z = choose(40 - ncyclers - nlands, 6 + nturns - n)*choose(nlands, n)
+        tally += z/ztotal
+    return tally
+
+
+
+
+def choose(n, k):
+    """
+    A fast way to calculate binomial coefficients by Andrew Dalke (contrib).
+    """
+    if 0 <= k <= n:
+        ntok, ktok = 1, 1
+        for t in range(1, min(k, n - k) + 1):
+            ntok *= n
+            ktok *= t
+            n -= 1
+        return ntok // ktok
+    else:
+        return 0
 
 # ----------------------------------------------------------------------
 
@@ -79,54 +216,86 @@ def scratch():
     return fig.draw('test.png')
 
 
-
 def gbbo(n):
+    global _seasons
     fig = cpl.Figure()
-    seasons = { i:load_season(i) for i in (2, 3, 4, 5) }
+    seasons = { i:load_season(i) for i in _seasons }
+
     fig.xlabel('Episode ' + str(n) + ' Technical Rank')
     fig.ylabel('Number of Episodes Survived')
-    cmap = cpl.helpers.seq_cmap()
+    if n == 1:
+        fig.title('Episode 1: Taking Judgments with a Grain of Salt')
+    elif n == 2:
+        fig.title('Episode 2: Separating the Wheat from the Chaff')
+
+
+
+    fig.highlight(xlims=(-99, 3.5), ylims=(-99, 99), color='#006374', alpha=0.15)
+    fig.text('Top 3 in\nthis episode', x=0.12, y=0.035)
+
+    fig.highlight(xlims=(-99, 99), ylims=(9.3, 99), color='#006374', alpha=0.15)
+    fig.text('Season\nfinalists', x=0.965, y=0.94, rotation=90)
+
+
+
     # Combine all the data into a single list so we can fit it.
-    allranks, allepisodes = [], []
+    allx, ally = [], []
     # Plot the seasons one at a time, each in a different color.
     for i, season in seasons.items():
         names = sorted( season.keys() )
+
         # If not looking at the first episode, some of the bakers will
         # not have a score, because they've already been eliminated.
-        ranks, episodes = [], []
+        xarr, yarr = [], []
         for name in names:
             if len( season[name] ) < n:
                 continue
-            ranks.append( season[name][n-1] )
-            episodes.append( len( season[name] ) )
-        color = ('k', 'y', 'r', 'b', 'g', 'm', 'c')[i]
-        ranks = [ x + 0.1*pmx(i) for x in ranks ]
-        episodes = [ x + 0.1*pmy(i) for x in episodes ]
+            xarr.append( season[name][n-1] )
+            yarr.append( len( season[name] ) )
+
+#        color ={
+#            3:'#4C72B0',
+#            4:'#55A868',
+#            5:'#C44E52',
+#            6:'#8172B2',
+#            7:'#CCB974',
+#            8:'#64B5CD',
+#        }[i]
+
+        color ={
+            3:'#001C7F',
+            4:'#017517',
+            5:'#8C0900',
+            6:'#7600A1',
+            7:'#B8860B',
+            8:'#006374',
+        }[i]
+
         label = cpl.helpers.tex( 'Series ' + str(i) )
-        fig.dots(ranks, episodes, color=color, label=label)
-        allranks.extend(ranks)
-        allepisodes.extend(episodes)
+        # Add these values to the big array.
+        allx.extend(xarr)
+        ally.extend(yarr)
+        # After adding to the big array, but before plotting, tweak the
+        # values to prevent overlap.
+        xarr = [ x + 0.1*pmx(i) for x in xarr ]
+        yarr = [ x + 0.1*pmy(i) for x in yarr ]
+        fig.dots(xarr, yarr, color=color, label=label)
+
     # Perform a linear fit, and get an R squared value.
-    allranks = np.array(allranks)
-    allepisodes = np.array(allepisodes)
-    p = np.polyfit(allranks, allepisodes, 1)
+    allx = np.array(allx)
+    ally = np.array(ally)
+    p = np.polyfit(allx, ally, 1)
     # If we don't sort the values, the line renders poorly.
-    xvals = np.array( sorted(allranks) )
+    xvals = np.array( sorted(allx) )
     yvals = p[0]*xvals + p[1]
     fig.line(xvals, yvals, color='k')
     # Compute R squared, per Wikipedia.
-    ybar = np.mean(allepisodes)
-    sstot = np.sum( (allepisodes - ybar)**2 )
+    ybar = np.mean(ally)
+    sstot = np.sum( (ally - ybar)**2 )
     ssreg = np.sum( (yvals - ybar)**2 )
     # Stick it in the middle of the plot.
     rlabel = 'R^2\\!=\\!' + format(ssreg/sstot, '.2f')
     fig.text(rlabel)
-
-    if n == 1:
-        fig.title('Episode 1: No Particular Correlation')
-    elif n == 2:
-        fig.title('Episode 2: Cream Rises to the Top')
-#        fig.title('Episode 2: Now with $p$-Hacking')
 
     plt.xlim( [0.5, 13.5] )
     plt.ylim( [0.5, 10.5] )
@@ -134,13 +303,19 @@ def gbbo(n):
     fig.xticks( [1, 4, 7, 10, 13] )
     fig.yticks( [1, 4, 7, 10] )
 
-    return fig.draw('ep' + str(n) + '.png')
+    return fig.draw('ep' + str(n) + '.svg')
 
 def pmx(i):
-    return +1 if i%2 else -1
+    global _seasons
+    return np.sin( i*2*np.pi/len(_seasons) )
+#    return {3:0, 4:-1, 5:+1}[i]*np.sqrt(0.75)
+#    return +1 if i%2 else -1
 
 def pmy(i):
-    return +1 if (i//2)%2 else -1
+    global _seasons
+    return np.cos( i*2*np.pi/len(_seasons) )
+#    return {3:np.sqrt(0.75), 4:-0.5, 5:-0.5}[i]
+#    return +1 if (i//2)%2 else -1
 
 # ######################################################################
 

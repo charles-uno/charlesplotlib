@@ -1,23 +1,28 @@
-from . import helpers
 
+import datetime as dt
 import matplotlib.pyplot as plt
 from matplotlib import gridspec, rc
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colorbar import ColorbarBase
+import matplotlib.patheffects as PathEffects
+from matplotlib import patches
 import numpy as np
-
 import sys
-import datetime as dt
 
+from . import helpers
+
+# ######################################################################
 
 class Figure(object):
 
     lines = None
     meshes = None
 
+    xlims, ylims, zlims = None, None, None
+
     # ------------------------------------------------------------------
 
-    def __init__(self):
+    def __init__(self, rows=1, cols=1):
         # LaTeX fonts.
         rc('font', family='sans-serif', size='14')
         rc('text', usetex=True)
@@ -29,22 +34,22 @@ class Figure(object):
 
         # Tiles are (height, width).
 
-        tiles = gridspec.GridSpec(30, 30)
+        tiles = gridspec.GridSpec(100, 100)
         plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
 
         # Title axis.
-        self.tax = plt.subplot( tiles[4:6, 3:-3] )
+        self.tax = plt.subplot( tiles[9:14, 8:-8] )
         self.tax.axis('off')
         self.tax.set_xticks( [] )
         self.tax.set_yticks( [] )
 
         # Legend/label axis.
-        self.lax = plt.subplot( tiles[1:3, 3:-3] )
+        self.lax = plt.subplot( tiles[1:7, 8:-8] )
         self.lax.set_xticks( [] )
         self.lax.set_yticks( [] )
 
         # Data axis.
-        self.dax = plt.subplot( tiles[7:27, 3:-3] )
+        self.dax = plt.subplot( tiles[16:93, 8:-8] )
 
         self.lines = []
         self.meshes = []
@@ -62,13 +67,26 @@ class Figure(object):
 
     # ------------------------------------------------------------------
 
+    def xlims(self, lims):
+        self.dax.set_xlim(lims)
+
+    # ------------------------------------------------------------------
+
+    def ylims(self, lims):
+        self.dax.set_ylim(lims)
+
+    def zlims(self, lims):
+        self.zlims = lims
+
+    # ------------------------------------------------------------------
+
     def xlabel(self, text, *args, **kwargs):
-        return plt.xlabel(helpers.tex(text), *args, **kwargs)
+        return self.dax.set_xlabel(helpers.tex(text), *args, **kwargs)
 
     # ------------------------------------------------------------------
 
     def ylabel(self, text, *args, **kwargs):
-        return plt.ylabel(helpers.tex(text), *args, **kwargs)
+        return self.dax.set_ylabel(helpers.tex(text), *args, **kwargs)
 
     # ------------------------------------------------------------------
 
@@ -94,6 +112,18 @@ class Figure(object):
 
     # ------------------------------------------------------------------
 
+    def highlight(self, xlims, ylims, **kwargs):
+        return self.dax.add_patch(
+            patches.Rectangle(
+                ( xlims[0], ylims[0] ),
+                xlims[1] - xlims[0],
+                ylims[1] - ylims[0],
+                **kwargs
+            )
+        )
+
+    # ------------------------------------------------------------------
+
     def draw_lines(self):
         print(len(self.lines), 'lines to draw')
 
@@ -104,7 +134,7 @@ class Figure(object):
             self.dax.plot(*args, **kwargs)
         plt.legend(
             numpoints=1,
-            ncol=4,
+            ncol=5,
             bbox_to_anchor=self.lax.get_position(),
             mode='expand',
             bbox_transform=plt.gcf().transFigure,
@@ -125,14 +155,22 @@ class Figure(object):
 
         cmap = helpers.seq_cmap()
 
-        zmin, zmax = 0, 12
-        ncolors = 13
+        if self.zlims:
+            zmin, zmax = self.zlims
+        else:
+            zmin, zmax = 0, 12
+
+        ncolors = 25
         nticks = 5
         zlvlstep = (zmax - zmin)/(ncolors - 1.)
         zlvlmin = zmin - 0.5*zlvlstep
         zlvlmax = zmax + 0.5*zlvlstep
         zlevels = np.linspace(zlvlmin, zlvlmax, ncolors + 1)
         zticks = np.linspace(zmin, zmax, nticks)
+
+
+        print('ZTICKS:', zticks)
+
 
         norm = BoundaryNorm(zlevels, cmap.N)
 
@@ -159,16 +197,29 @@ class Figure(object):
 
     # ------------------------------------------------------------------
 
-    def text(self, text):
-        return self.dax.text(
-            s=helpers.tex(text),
-            x=0.5,
-            y=0.5,
-            horizontalalignment='center',
-            verticalalignment='center',
-            transform=self.dax.transAxes
+    def text(self, text, datacoords=False, shadow=None, **kwargs):
+
+        _kwargs = {
+            'x':0.5,
+            'y':0.5,
+            'horizontalalignment':'center',
+            'verticalalignment':'center',
+#            'transform':self.dax.transAxes
 #            fontsize=12,
-        )
+        }
+
+        if not datacoords:
+            _kwargs.update(transform=self.dax.transAxes)
+
+        if shadow:
+            _kwargs.update(
+                path_effects=[ PathEffects.withStroke(linewidth=10, foreground=shadow) ]
+            )
+
+
+
+        _kwargs.update(kwargs)
+        return self.dax.text(s=helpers.tex(text), **_kwargs)
 
     # ------------------------------------------------------------------
 

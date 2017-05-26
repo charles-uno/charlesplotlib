@@ -22,6 +22,11 @@ class Plot(object):
 
     xlims, ylims, zlims = None, None, None
 
+    ncolors = 13
+
+    nticks = 5
+
+
     clabels, rlabels = None, None
 
     _colorbar = True
@@ -31,6 +36,10 @@ class Plot(object):
         rc('font', family='sans-serif', size='14')
         rc('text', usetex=True)
         rc('text.latex', preamble='\\usepackage{amsmath},\\usepackage{amssymb},\\usepackage{color}')
+
+        self.cmap = helpers.seq_cmap()
+
+
         self._rows, self._cols = rows, cols
 
         self.subplots = np.empty( [rows, cols], dtype=object )
@@ -46,32 +55,10 @@ class Plot(object):
 
 
     def __getitem__(self, key):
-
         if isinstance(key, int):
             return self.subplots.flatten()[key]
         else:
             return self.subplots[key]
-
-
-    def drawmesh(self):
-
-        if not any( x.meshes for x in self.dax ):
-            return
-
-        self._colorbar = True
-
-
-        self.bax.xaxis.tick_top()
-
-        self.bax.set_xticklabels( [ helpers.fmt_int(x) for x in zticks ] )
-
-        for args, kwargs in self.meshes:
-            self.dax.pcolormesh(
-                *args,
-                cmap=cmap,
-                norm=norm,
-            )
-
 
 
     def getnorm(self):
@@ -82,20 +69,11 @@ class Plot(object):
 
         self._colorbar = True
 
-        self.cmap = helpers.seq_cmap()
-
-        zmin, zmax = 0, 12
-
-        ncolors = 13
-        nticks = 5
-        zlvlstep = (zmax - zmin)/(ncolors - 1.)
-        zlvlmin = zmin - 0.5*zlvlstep
-        zlvlmax = zmax + 0.5*zlvlstep
-        zlevels = np.linspace(zlvlmin, zlvlmax, ncolors + 1)
-        self.zticks = np.linspace(zmin, zmax, nticks)
+        z0, z1 = self.zticks[0], self.zticks[-1]
+        dz = (z1 - z0)/(self.ncolors - 1.)
+        zlevels = np.linspace(z0 - dz/2, z1 + dz/2, self.ncolors + 1)
 
         return BoundaryNorm(zlevels, self.cmap.N)
-
 
 
     def draw(self, filename=None):
@@ -115,6 +93,11 @@ class Plot(object):
                 orientation='horizontal',
             )
             self.bax.xaxis.tick_top()
+
+            if self.zticklabels:
+                self.bax.set_xticklabels( helpers.tex(x) for x in self.zticklabels )
+
+
 
         kwargs = dict(
                 x=0.5,
@@ -138,7 +121,7 @@ class Plot(object):
             self.yax.text(s=helpers.tex(self.ylabel), fontsize=18, rotation=90, **kwargs)
 
         if self.clabels:
-            [ x.text(s=helpers.tex(y), **kwargs) for x, y in zip(self.cax, self.clabels) ]
+            [ x.text(s=helpers.tex(y), fontsize=18, **kwargs) for x, y in zip(self.cax, self.clabels) ]
 
         if self.rlabels:
             [ x.text(s=helpers.tex(y), **kwargs) for x, y in zip(self.rax, self.rlabels) ]
@@ -159,7 +142,20 @@ class Plot(object):
             kwargs = {'cmap':self.cmap, 'norm':norm, 'ax':ax}
             sp.draw(**kwargs)
 
-        return plt.show()
+
+
+
+
+
+
+        if '--save' in sys.argv and filename is not None:
+            plotspath = '/home/charles/Desktop/plots/'
+            timestamp = dt.datetime.now().strftime('%Y%m%d%H%M%S')
+            filepath = plotspath + timestamp + '_' + filename
+            print('Saving', filepath, '...')
+            return plt.savefig(filepath)
+        else:
+            return plt.show()
 
 # ======================================================================
 
@@ -276,19 +272,54 @@ def getaxes(rows=1, cols=1, colorbar=None):
 
     return axdict
 
-
-
 # ######################################################################
 
 class Subplot(object):
 
+    # ------------------------------------------------------------------
 
     def __init__(self):
-        self.meshes = []
+        self.meshes, self.lines, self.texts = [], [], []
         return
 
+    # ------------------------------------------------------------------
+
     def mesh(self, *args, **kwargs):
-        self.meshes.append( (args, kwargs) )
+        return self.meshes.append( (args, kwargs) )
+
+    # ------------------------------------------------------------------
+
+    def line(self, *args, **kwargs):
+        return self.lines.append( (args, kwargs) )
+
+    # ------------------------------------------------------------------
+
+    def text(self, text, datacoords=False, **kwargs):
+        _kwargs = {
+            'x':0.5,
+            'y':0.5,
+            'horizontalalignment':'center',
+            'verticalalignment':'center',
+        }
+        if not datacoords:
+            _kwargs.update(transform=self.dax.transAxes)
+        _kwargs.update(kwargs)
+        _kwargs['s'] = helpers.tex(text)
+        return self.texts.append( ( [], _kwargs ) )
+
+    # ------------------------------------------------------------------
+
+    def dots(self, *args, **kwargs):
+        if 'color' in kwargs:
+            kwargs['markeredgecolor'] = kwargs['color']
+        if 'marker' not in kwargs:
+            kwargs['marker'] = 'o'
+        kwargs['linestyle'] = 'None'
+        if 'size' in kwargs:
+            kwargs['markersize'] = kwargs.pop('size')
+        return self.line(*args, **kwargs)
+
+    # ------------------------------------------------------------------
 
     def draw(self, **kwargs):
         for a, k in self.meshes:
@@ -296,12 +327,7 @@ class Subplot(object):
                 *a,
                 cmap=kwargs['cmap'],
                 norm=kwargs['norm'],
-#                levels=zlevels,
             )
-        return
-
-    # ------------------------------------------------------------------
-
-    def draw_meshes(self):
-
+        [ kwargs['ax'].plot(*a, **k) for a, k in self.lines ]
+        [ kwargs['ax'].text(*a, **k) for a, k in self.texts ]
         return

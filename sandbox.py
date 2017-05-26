@@ -46,90 +46,53 @@ def cyclers():
 
     plot = cpl.Plot(rows=1, cols=3)
 
-    plot.title = 'Title'
+    plot.title = 'Effects of Land Count and Cycler Count on Mana Curve Reliability'
 
     plot.xlabel = 'Number of Lands'
 
-    plot.xlims = (12.5, 19.5)
-    plot.xticks = (13, 15, 17, 19)
+    plot.xlims = 12.5, 19.5
+    plot.ylims = -0.5, 6.5
 
-    plot.ylims = (-0.5, 6.5)
-    plot.yticks = (0, 2, 4, 6)
+    plot.xticks = 13, 15, 17, 19
+    plot.yticks = 0, 2, 4, 6
+    plot.zticks = 0, 33, 66, 99
+
+    plot.zticklabels = [ str(x) + '\%' for x in plot.zticks ]
+
+
+    plot.ncolors = 10000
 
     plot.ylabel = 'Number of Cyclers'
 
     plot.clabels = (
-        'Hit 3 land drops',
-        'Hit 4 land drops',
-        'Hit 5 land drops',
+        '3 lands on turn 3',
+        '4 lands on turn 4',
+        '5 lands on turn 5',
     )
 
     xvals = 13 + np.arange(8)
     yvals = np.arange(8)
-    for i in range(3):
+    for turn in range(3):
         zvals = 10*np.random.rand(7, 7)
 
-        plot[i].mesh(xvals-0.5, yvals-0.5, zvals)
+        for i, x in enumerate( xvals[:-1] ):
+            for j, y in enumerate( yvals[:-1] ):
+
+                tmp = curve(3 + turn, x, y)*100
+
+                zvals[j, i]  = tmp
+
+                if i%2 == 0 and j%2 == 0:
+                    plot[turn].dots( [x], [y], size=30, color='w' )
+                    plot[turn].text(format(tmp, '.0f') + '\%', x=x, y=y, datacoords=True)
+
+        plot[turn].mesh(xvals-0.5, yvals-0.5, zvals)
+
+    return plot.draw('curve.png')
 
 
 
 
-
-    return plot.draw()
-
-
-    fig = cpl.Figure()
-    xvals = list( i - 0.5 for i in range(13, 21) )
-    yvals = list( i - 0.5 for i in range(0, 8) )
-
-    zvals = 10*np.random.rand(7, 7)
-
-    for i, x in enumerate( xvals[:-1] ):
-        for j, y in enumerate( yvals[:-1] ):
-
-            nlands, ncyclers = int(x+0.5), int(y+0.5)
-
-            fig.dots( [x+0.5], [y+0.5], size=35, color='w' )
-
-            zvals[j, i] = curve(4, nlands, ncyclers)*100
-
-            print('with', nlands, 'lands and', ncyclers, 'cyclers:', zvals[i, j])
-
-            fig.text(format(zvals[j, i], '.0f') + '\%', x=x+0.5, y=y+0.5, datacoords=True)
-#            fig.text(format(zvals[i, j], '.1f'), x=x+0.5, y=y+0.5, datacoords=True, weight='bold', shadow='w')
-
-#    zvals[1:2, :] = 0
-
-
-    fig.mesh(xvals, yvals, zvals)
-
-    fig.title('Title')
-    fig.xlabel('Number of Lands')
-
-    fig.xlims( (12.5, 19.5) )
-    fig.ylims( (-0.5, 6.5) )
-
-    fig.zlims( (0, 100) )
-
-
-    fig.ylabel('Number of Cyclers')
-
-
-
-
-
-    return fig.draw('test.png')
-
-
-
-    '''
-    fig = cpl.Figure(rows=3, cols=3)
-    fig.xticks = (13, 15, 17, 19)
-    fig.xlabel = 'Horizontal Axis Label'
-    fig.ylabel = 'Vertical Axis Label'
-    fig.title = 'Figure Title'
-    return fig.draw('test.png')
-    '''
 
 
 

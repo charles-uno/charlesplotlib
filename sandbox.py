@@ -1,5 +1,52 @@
 #!/usr/bin/env python3
 
+r'''
+
+import matplotlib
+import matplotlib.pylab as plt
+
+
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['font.serif'] = 'Computer Modern'
+matplotlib.rcParams['text.usetex'] = True
+
+#rc('font', **{'family': 'sans-serif'})
+#rc('mathtext', **{'fontset':'custom', 'rm':'Bitstream Vera Sans', 'it':'Bitstream Vera Sans:italic', 'bf':'Bitstream Vera Sans:bold'})
+
+matplotlib.rcParams['text.latex.preamble'] = [
+       r'\usepackage{helvet}',    # set the normal font here
+       r'\usepackage{sansmath}',  # load up the sansmath so that math -> helvet
+       r'\sansmath'               # <- tricky! -- gotta actually tell tex to use!
+]
+
+
+#matplotlib.rcParams['mathtext.fontset'] = 'cm'
+#matplotlib.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
+#matplotlib.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
+#matplotlib.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
+
+
+#rc('text', usetex=True)
+
+x = plt.linspace(0,5)
+plt.plot(x,plt.sin(x))
+plt.ylabel(r"This is $\sin(x)$", size=20)
+plt.show()
+
+exit()
+
+'''
+
+
+
+
+
+
+
+
+
+
+
 # Charles McEachern
 
 # Spring 2016
@@ -44,49 +91,61 @@ def main():
 
 def cyclers():
 
-    plot = cpl.Plot(rows=1, cols=3)
+    rows, cols = 2, 3
 
-    plot.title = 'Effects of Land Count and Cycler Count on Mana Curve Reliability'
+    landmin, landmax = 13, 19
+    cyclemin, cyclemax = 0, 6
 
+    plot = cpl.Plot(rows=rows, cols=cols)
+    plot.title = 'Effects of Land Count and Cycling on Mana Curve Reliability'
     plot.xlabel = 'Number of Lands'
 
-    plot.xlims = 12.5, 19.5
-    plot.ylims = -0.5, 6.5
+    plot.xlims = landmin - 0.5, landmax + 0.5
+    plot.ylims = cyclemin - 0.5, cyclemax + 0.5
 
-    plot.xticks = 13, 15, 17, 19
-    plot.yticks = 0, 2, 4, 6
-    plot.zticks = 0, 33, 66, 99
+    plot.xticks = range(landmin, landmax + 1, 2)
+    plot.yticks = range(cyclemin, cyclemax + 1, 2)
+    plot.zticks = 10, 30, 50, 70, 90
 
     plot.zticklabels = [ str(x) + '\%' for x in plot.zticks ]
 
+    plot.ncolors = 21
 
-    plot.ncolors = 10000
-
-    plot.ylabel = 'Number of Cyclers'
+    plot.ylabel = 'Number of Cards with Cycling'
 
     plot.clabels = (
-        '3 lands on turn 3',
-        '4 lands on turn 4',
-        '5 lands on turn 5',
+        'Hit 3$^{\mathrm{rd}}$ land but not 7$^{\mathrm{th}}$',
+        'Hit 4$^{\mathrm{th}}$ land but not 8$^{\mathrm{th}}$',
+        'Hit 5$^{\mathrm{th}}$ land but not 9$^{\mathrm{th}}$',
+
+#        'Hit 5th land but not 9th',
+
+#        '\\geq\\!3 lands on turn 3, <\\!7 lands on turn 7',
+#        '\\geq\\!4 lands on turn 4, <\\!8 lands on turn 8',
+#        '\\geq\\!5 lands on turn 5, <\\!9 lands on turn 9',
     )
 
-    xvals = 13 + np.arange(8)
-    yvals = np.arange(8)
-    for turn in range(3):
-        zvals = 10*np.random.rand(7, 7)
+    plot.rlabels = ('Play', 'Draw')
 
-        for i, x in enumerate( xvals[:-1] ):
-            for j, y in enumerate( yvals[:-1] ):
+    xvals = np.arange(landmin, landmax + 2)
+    yvals = np.arange(cyclemin, cyclemax + 2)
+    for col in range(cols):
 
-                tmp = curve(3 + turn, x, y)*100
+        for row in range(rows):
 
-                zvals[j, i]  = tmp
+            zvals = np.random.rand(cyclemax - cyclemin + 1, landmax - landmin + 1)
 
-                if i%2 == 0 and j%2 == 0:
-                    plot[turn].dots( [x], [y], size=30, color='w' )
-                    plot[turn].text(format(tmp, '.0f') + '\%', x=x, y=y, datacoords=True)
+            for i, x in enumerate( xvals[:-1] ):
+                for j, y in enumerate( yvals[:-1] ):
 
-        plot[turn].mesh(xvals-0.5, yvals-0.5, zvals)
+                    tmp = curve(3 + col, 7 + col, x, ncyclers=y, draw=row)*100
+                    zvals[j, i]  = tmp
+
+                    if i%2 == 0 and j%2 == 0:
+#                        plot[row, col].dots( [x], [y], size=20, color='w' )
+                        plot[row, col].text(format(tmp, '.0f') + '\%', x=x, y=y)
+
+            plot[row, col].mesh(xvals-0.5, yvals-0.5, zvals)
 
     return plot.draw('curve.png')
 
@@ -97,19 +156,40 @@ def cyclers():
 
 
 
-def curve(nturns, nlands, ncyclers=0):
+def curve(hit, miss, nlands, ncyclers=0, draw=False):
     # What are the odds of hitting your lands on curve for this many turns on the play?
 
-    # Total number of possible draws.
-    ztotal = choose(40 - ncyclers, 6 + nturns)
+    decksize = 40 - ncyclers
+    decklands = nlands
+    handsize = (7 if draw else 6) + hit
 
-    # Tally up the odds of getting at least this many lands.
     tally = 0
-    for n in range(nturns, 7+nturns):
-        z = choose(40 - ncyclers - nlands, 6 + nturns - n)*choose(nlands, n)
-        tally += z/ztotal
+    for handlands in range(hit, hit + 7):
+
+        # Odds to hit 3+ lands on turn 3
+        tohit = _curve(decksize, decklands, handsize, handlands)
+
+        # Odds that from there, you have NOT hit 8 lands on turn 8
+        tomiss = 0
+        deckleft = decksize - handsize
+        landsleft = decklands - handlands
+        newhand = miss - hit
+        for newlands in range(0, miss - handlands):
+            tomiss += _curve(deckleft, landsleft, newhand, newlands)
+
+        tally += tohit*tomiss
+
     return tally
 
+
+
+
+def _curve(decksize, decklands, handsize, handlands):
+    # Deck size DS, deck lands DL, hand size HS. Return the odds of having exactly HL lands in hand.
+    ztotal = choose(decksize, handsize)
+    zlands = choose(decksize - decklands, handsize - handlands)
+    zspells = choose(decklands, handlands)
+    return zlands*zspells/ztotal
 
 
 
@@ -126,290 +206,6 @@ def choose(n, k):
         return ntok // ktok
     else:
         return 0
-
-# ----------------------------------------------------------------------
-
-import matplotlib.pyplot as plt
-
-import cubehelix
-
-
-def scratch():
-
-    '''
-    This syntax looks nice, I think:
-
-    fig.title = 'Title'
-    fig.xlabel = 'Horizontal Axis Label'
-    fig.xmin, fig.xmax = 1, 100
-    fig.xlog = True
-    fig.ncolors = 13
-    fig.nticks = 5
-
-    What all do we need?
-
-    title
-    xlabel, ylabel
-    zlabel/zunits
-    xmin, xmax, xlog
-    ymin, ymax, ylog
-    zmin, zmax, zlog
-    xticks, yticks, zticks
-    (labels are formatted nicely automatically)
-
-    Maybe print a warning if nticks doesn't divide nicely into ncolors?
-
-    Nice-looking plots have ticks at integers. That seems like a safe assumption for the x and y axes.
-
-    How about the z axis?
-
-    How about handling of log axes?
-
-    Come up with a sample bullseye plot.
-    '''
-    fig = cpl.Figure()
-    n = 5
-    xvals = list( range(n) )
-    yvals = list( range(n) )
-    zvals = 10*np.random.rand(n, n)
-    fig.mesh(xvals, yvals, zvals)
-    fig.title('Title')
-    fig.xlabel('Horizontal Axis Label')
-    fig.ylabel('Vertical Axis Label')
-    return fig.draw('test.png')
-
-
-def gbbo(n):
-    global _seasons
-    fig = cpl.Figure()
-    seasons = { i:load_season(i) for i in _seasons }
-
-    fig.xlabel('Episode ' + str(n) + ' Technical Rank')
-    fig.ylabel('Number of Episodes Survived')
-    if n == 1:
-        fig.title('Episode 1: Taking Judgments with a Grain of Salt')
-    elif n == 2:
-        fig.title('Episode 2: Separating the Wheat from the Chaff')
-
-
-
-    fig.highlight(xlims=(-99, 3.5), ylims=(-99, 99), color='#006374', alpha=0.15)
-    fig.text('Top 3 in\nthis episode', x=0.12, y=0.035)
-
-    fig.highlight(xlims=(-99, 99), ylims=(9.3, 99), color='#006374', alpha=0.15)
-    fig.text('Season\nfinalists', x=0.965, y=0.94, rotation=90)
-
-
-
-    # Combine all the data into a single list so we can fit it.
-    allx, ally = [], []
-    # Plot the seasons one at a time, each in a different color.
-    for i, season in seasons.items():
-        names = sorted( season.keys() )
-
-        # If not looking at the first episode, some of the bakers will
-        # not have a score, because they've already been eliminated.
-        xarr, yarr = [], []
-        for name in names:
-            if len( season[name] ) < n:
-                continue
-            xarr.append( season[name][n-1] )
-            yarr.append( len( season[name] ) )
-
-#        color ={
-#            3:'#4C72B0',
-#            4:'#55A868',
-#            5:'#C44E52',
-#            6:'#8172B2',
-#            7:'#CCB974',
-#            8:'#64B5CD',
-#        }[i]
-
-        color ={
-            3:'#001C7F',
-            4:'#017517',
-            5:'#8C0900',
-            6:'#7600A1',
-            7:'#B8860B',
-            8:'#006374',
-        }[i]
-
-        label = cpl.helpers.tex( 'Series ' + str(i) )
-        # Add these values to the big array.
-        allx.extend(xarr)
-        ally.extend(yarr)
-        # After adding to the big array, but before plotting, tweak the
-        # values to prevent overlap.
-        xarr = [ x + 0.1*pmx(i) for x in xarr ]
-        yarr = [ x + 0.1*pmy(i) for x in yarr ]
-        fig.dots(xarr, yarr, color=color, label=label)
-
-    # Perform a linear fit, and get an R squared value.
-    allx = np.array(allx)
-    ally = np.array(ally)
-    p = np.polyfit(allx, ally, 1)
-    # If we don't sort the values, the line renders poorly.
-    xvals = np.array( sorted(allx) )
-    yvals = p[0]*xvals + p[1]
-    fig.line(xvals, yvals, color='k')
-    # Compute R squared, per Wikipedia.
-    ybar = np.mean(ally)
-    sstot = np.sum( (ally - ybar)**2 )
-    ssreg = np.sum( (yvals - ybar)**2 )
-    # Stick it in the middle of the plot.
-    rlabel = 'R^2\\!=\\!' + format(ssreg/sstot, '.2f')
-    fig.text(rlabel)
-
-    plt.xlim( [0.5, 13.5] )
-    plt.ylim( [0.5, 10.5] )
-
-    fig.xticks( [1, 4, 7, 10, 13] )
-    fig.yticks( [1, 4, 7, 10] )
-
-    return fig.draw('ep' + str(n) + '.svg')
-
-def pmx(i):
-    global _seasons
-    return np.sin( i*2*np.pi/len(_seasons) )
-#    return {3:0, 4:-1, 5:+1}[i]*np.sqrt(0.75)
-#    return +1 if i%2 else -1
-
-def pmy(i):
-    global _seasons
-    return np.cos( i*2*np.pi/len(_seasons) )
-#    return {3:np.sqrt(0.75), 4:-0.5, 5:-0.5}[i]
-#    return +1 if (i//2)%2 else -1
-
-# ######################################################################
-
-def load_season(n):
-    scores = {}
-    for line in cpl.helpers.read('gbbo/s' + str(n) + '.txt'):
-        # Skip spacer lines. We don't need to explicitly track episodes,
-        # since each baker appears exactly once in each.
-        if not line:
-            continue
-        name, score = line.split()
-        if name not in scores:
-            scores[name] = []
-        if score.isdigit():
-            score = int(score)
-        else:
-            score = 5.5
-        scores[name].append(score)
-    return scores
-
-
-
-
-
-
-
-
-
-# ######################################################################
-
-def flip(n=2):
-    """Returns True one time out of n (default 2)."""
-    return np.random.randint(n)==0
-
-def lims(scalemax):
-    maybe_min = np.random.randint(scalemax)
-#    if flip(4):
-#        maybe_min *= -1
-    maybe_max = np.random.randint(scalemax)
-    return sorted( [maybe_min, maybe_max] )
-
-
-def zvals(n, scalemax=1000):
-    scale = np.random.randint(scalemax)
-    # One time in four, make it negative.
-    if flip(4):
-        return 2*scale*np.random.rand(n, n) - scale
-    else:
-        return scale*np.random.rand(n, n)
-
-
-
-def contour():
-
-    # Let's do four plots.
-
-    # For each, figure out the domain. Magnitude no greater than 10.
-    # Each minimum has a 1 in 4 chance of being negative (so they will
-    # all four be positive decently often).
-
-    xlims = [ lims(1000) for _ in range(4) ]
-    ylims = [ lims(1000) for _ in range(4) ]
-
-    n = 5
-
-    pw = cpl.plotwindow(2, 2, slope=1.)
-
-    xvals = [ np.linspace(x[0], x[1], n) for x in xlims ]
-    yvals = [ np.linspace(y[0], y[1], n) for y in ylims ]
-
-    pw[0].mesh( xvals[0], yvals[0], zvals(n) )
-    pw[1].contour( xvals[1], yvals[1], zvals(n) )
-    pw[2].contour( xvals[2], yvals[2], zvals(n) )
-    pw[3].mesh( xvals[3], yvals[3], zvals(n) )
-
-    clabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
-
-    rlabs = ('$m = 1$', '$m = 4$')
-
-    pw.style(clabs=clabs, rlabs=rlabs, title='ABCD sample title')
-
-    if flip():
-        pw.style(xlog=True)
-    else:
-        pw.style(ylog=True)
-
-    if flip():
-        pw.style(zlog=True)
-
-    pw.draw()
-
-    return
-
-
-
-
-
-
-
-
-    pw = cpl.plotwindow(1, 2, slope=1.)
-
-    n = 5
-
-    x = np.linspace(3, 8, n)
-    y = np.linspace(0, 10, n)
-    scale = np.random.randint(100)
-    if flip():
-        z = scale*np.random.rand(n, n)
-    else:
-        z = 2*scale*np.random.rand(n, n) - scale
-    pw[0].contour(x, y, z)
-
-    x = np.linspace(0, 10, n+1)
-    y = np.linspace(2, 7, n+1)
-    scale = np.random.randint(100)
-    if flip():
-        z = scale*np.random.rand(n, n)
-    else:
-        z = 2*scale*np.random.rand(n, n) - scale
-    pw[1].mesh(x, y, z)
-
-    clabs = ('row 0 $w^2 = \\sqrt{b}$ test', 'row 1')
-    pw.style(clabs=clabs, title='ABCD sample title')
-
-    pw.draw()
-
-    return
-
-
-
 
 
 

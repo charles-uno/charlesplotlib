@@ -7,18 +7,14 @@
 # ######################################################################
 
 import cubehelix
-import matplotlib
+#import matplotlib
 import numpy as np
 import os
-# Allows use over SSH, even from a machine not running an xserver.
-if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
-    matplotlib.use('Agg')
-from matplotlib import gridspec, rc
-from matplotlib.colorbar import ColorbarBase
+#from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import LinearSegmentedColormap as lsc
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from matplotlib.colors import LogNorm, Normalize, SymLogNorm
-from matplotlib.patches import Wedge
+#from matplotlib.patches import Wedge
 from time import localtime as lt
 
 # ######################################################################
@@ -182,7 +178,15 @@ def notex(x):
 # ----------------------------------------------------------------------
 
 def tex(x):
-    """Split a string into math and non-math chunks, by dollar signs."""
+    """Split a string into math and non-math chunks, by dollar signs.
+
+    Needs these in the LaTeX preamble, using matplotlib.rcParams -- rendering is glacial.
+
+    '\\usepackage{amsmath}',
+    '\\usepackage{amssymb}',
+    '\\usepackage{color}',
+
+    """
     nomath = x.split('$')[::2]
     ret = [None]*( len( x.split('$') ) )
     ret[1::2] = x.split('$')[1::2]

@@ -1,15 +1,36 @@
 
 import datetime as dt
-import matplotlib.pyplot as plt
-from matplotlib import gridspec, rc
+import matplotlib
+#matplotlib.use('Agg')
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colorbar import ColorbarBase
 import matplotlib.patheffects as PathEffects
+import matplotlib.pylab as plt
 from matplotlib import patches
 import numpy as np
 import sys
 
 from . import helpers
+
+
+# LaTeX fonts.
+
+
+
+
+matplotlib.rcParams['text.usetex'] = True
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['font.sans-serif'] = 'Roboto Condensed'
+matplotlib.rcParams['text.latex.preamble'] = [
+#    r'\usepackage{cmbright}',
+    r'\usepackage[sfdefault,condensed]{roboto}',
+#    r'\usepackage{venturis}',
+    r'\usepackage{sansmath}',
+    r'\sansmath'
+]
+
+#matplotlib.rcParams['font.family'] = 'sans-serif'
+#matplotlib.rcParams['font.size'] = '14'
 
 # ######################################################################
 
@@ -32,13 +53,7 @@ class Plot(object):
     _colorbar = True
 
     def __init__(self, rows=1, cols=1):
-        # LaTeX fonts.
-        rc('font', family='sans-serif', size='14')
-        rc('text', usetex=True)
-        rc('text.latex', preamble='\\usepackage{amsmath},\\usepackage{amssymb},\\usepackage{color}')
-
         self.cmap = helpers.seq_cmap()
-
 
         self._rows, self._cols = rows, cols
 
@@ -95,9 +110,7 @@ class Plot(object):
             self.bax.xaxis.tick_top()
 
             if self.zticklabels:
-                self.bax.set_xticklabels( helpers.tex(x) for x in self.zticklabels )
-
-
+                self.bax.set_xticklabels(self.zticklabels)
 
         kwargs = dict(
                 x=0.5,
@@ -112,19 +125,19 @@ class Plot(object):
             [ x.set_xlim(xlims) for x in self.dax.flatten() ]
 
         if self.title:
-            self.tax.text(s=helpers.tex(self.title), fontsize=24, **kwargs)
+            self.tax.text(s=self.title, fontsize=24, **kwargs)
 
         if self.xlabel:
-            self.xax.text(s=helpers.tex(self.xlabel), fontsize=18, **kwargs)
+            self.xax.text(s=self.xlabel, fontsize=18, **kwargs)
 
         if self.ylabel:
-            self.yax.text(s=helpers.tex(self.ylabel), fontsize=18, rotation=90, **kwargs)
+            self.yax.text(s=self.ylabel, fontsize=18, rotation=90, **kwargs)
 
         if self.clabels:
-            [ x.text(s=helpers.tex(y), fontsize=18, **kwargs) for x, y in zip(self.cax, self.clabels) ]
+            [ x.text(s=y, fontsize=16, **kwargs) for x, y in zip(self.cax, self.clabels) ]
 
         if self.rlabels:
-            [ x.text(s=helpers.tex(y), **kwargs) for x, y in zip(self.rax, self.rlabels) ]
+            [ x.text(s=y, fontsize=16, **kwargs) for x, y in zip(self.rax, self.rlabels) ]
 
         if self.xlims:
             [ x.set_xlim(self.xlims) for x in self.dax.flatten() ]
@@ -142,12 +155,6 @@ class Plot(object):
             kwargs = {'cmap':self.cmap, 'norm':norm, 'ax':ax}
             sp.draw(**kwargs)
 
-
-
-
-
-
-
         if '--save' in sys.argv and filename is not None:
             plotspath = '/home/charles/Desktop/plots/'
             timestamp = dt.datetime.now().strftime('%Y%m%d%H%M%S')
@@ -161,8 +168,8 @@ class Plot(object):
 
 def getaxes(rows=1, cols=1, colorbar=None):
     # Figure out how much space we need for the subplots.
-    wcell, hcell, pad, bigpad = 100, 100, 6, 12
-    htitle = pad
+    wcell, hcell, pad, bigpad = 100, 100, 5, 12
+    htitle = 20
     wcells = cols*(wcell + pad) - pad
     hcells = rows*(hcell + pad) - pad
 
@@ -195,7 +202,7 @@ def getaxes(rows=1, cols=1, colorbar=None):
 
     plt.figure(figsize=(wfig, hfig), facecolor='w')
     # Tiles are (height, width).
-    tiles = gridspec.GridSpec(hgrid, wgrid)
+    tiles = matplotlib.gridspec.GridSpec(hgrid, wgrid)
     plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
 
     axdict = {}
@@ -230,7 +237,7 @@ def getaxes(rows=1, cols=1, colorbar=None):
     axdict['cax'] = cax
 
     # On the left we have an axis for the vertical label.
-    top = pad + hbar + barpad + htitle + pad + hlabel + pad
+    top = pad + hbar + barpad + htitle + pad + hclab + clabpad
     bot = top + hcells
     left, right = pad, pad + wlabel
     yax = plt.subplot( tiles[top:bot, left:right] )
@@ -239,10 +246,10 @@ def getaxes(rows=1, cols=1, colorbar=None):
 
     # To the right of the data we have row labels.
     rax = np.empty( [rows], dtype=object )
-    right = -pad
+    right = -bigpad
     left = right - wrlab
     for j in range(rows):
-        top = bigpad + hbar + barpad + htitle + pad + hclab + clabpad + j*(hcell + pad)
+        top = pad + hbar + barpad + htitle + pad + hclab + clabpad + j*(hcell + pad)
         bot = top + hcell
         rax[j] = plt.subplot( tiles[top:bot, left:right] )
     [ x.axis('off') for x in rax ]
@@ -294,17 +301,23 @@ class Subplot(object):
 
     # ------------------------------------------------------------------
 
-    def text(self, text, datacoords=False, **kwargs):
+    def text(self, text, shadow=False, **kwargs):
         _kwargs = {
-            'x':0.5,
-            'y':0.5,
             'horizontalalignment':'center',
             'verticalalignment':'center',
         }
-        if not datacoords:
+
+        if 'x' not in kwargs or 'y' not in kwargs:
+            _kwargs['x'], _kwargs['y'] = 0.5, 0.5
             _kwargs.update(transform=self.dax.transAxes)
+
+        if shadow:
+            _kwargs.update(
+                path_effects=[ PathEffects.withStroke(linewidth=10, foreground=shadow) ]
+            )
+
         _kwargs.update(kwargs)
-        _kwargs['s'] = helpers.tex(text)
+        _kwargs['s'] = text
         return self.texts.append( ( [], _kwargs ) )
 
     # ------------------------------------------------------------------

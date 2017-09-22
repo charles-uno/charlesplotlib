@@ -34,12 +34,18 @@ matplotlib.rcParams['text.latex.preamble'] = [
 
 # ######################################################################
 
+_labels = False
+
+# ######################################################################
+
 class Plot(object):
 
     title = None
 
     xticks, yticks, zticks = None, None, None
     xlabel, ylabel, zlabel = None, None, None
+
+    xticklabels, yticklabels = None, None
 
     xlims, ylims, zlims = None, None, None
 
@@ -62,8 +68,6 @@ class Plot(object):
         for i in range(rows):
             for j in range(cols):
                 self.subplots[i, j] = Subplot()
-
-
 
         return
 
@@ -93,7 +97,14 @@ class Plot(object):
 
     def draw(self, filename=None):
 
+        global _labels
+
         norm = self.getnorm()
+
+
+        # If we have labels, make room for a color bar.
+        if not self._colorbar:
+            self._colorbar = _labels
 
         axdict = getaxes(rows=self._rows, cols=self._cols, colorbar=self._colorbar)
         self.__dict__.update(axdict)
@@ -151,9 +162,47 @@ class Plot(object):
         if self.yticks:
             [ x.set_yticks(self.yticks) for x in self.dax.flatten() ]
 
+
+
+
+        if self.xticklabels:
+            [ x.set_xticklabels(self.xticklabels) for x in self.dax[-1, :] ]
+
+        if self.yticklabels:
+            [ x.set_yticklabels(self.yticklabels) for x in self.dax[:, 0] ]
+
+
+        handles, labels = [], []
+
         for sp, ax in zip( self.subplots.flatten(), self.dax.flatten() ):
             kwargs = {'cmap':self.cmap, 'norm':norm, 'ax':ax}
             sp.draw(**kwargs)
+
+            for handle, label in zip( *ax.get_legend_handles_labels() ):
+                if label not in labels:
+                    handles.append(handle), labels.append(label)
+
+
+        if _labels:
+
+#            for color, label in _labels.items():
+            plt.legend(
+                handles,
+                labels,
+                numpoints=1,
+                ncol=4,
+                bbox_to_anchor=self.bax.get_position(),
+                mode='expand',
+                bbox_transform=plt.gcf().transFigure,
+                borderaxespad=0,
+                frameon=False,
+                handletextpad=-0.1,
+            )
+
+
+
+
+
 
         if '--save' in sys.argv and filename is not None:
             plotspath = '/home/charles/Desktop/plots/'
@@ -297,6 +346,9 @@ class Subplot(object):
     # ------------------------------------------------------------------
 
     def line(self, *args, **kwargs):
+        global _labels
+        if 'label' in kwargs:
+            _labels = True
         return self.lines.append( (args, kwargs) )
 
     # ------------------------------------------------------------------

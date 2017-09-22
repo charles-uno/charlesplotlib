@@ -33,14 +33,12 @@ def num(x):
 # ----------------------------------------------------------------------
 
 def read(filename):
-    """Return the contents of a text file as a list of right-stripped
-    strings.
-    """
+    """Return the contents of a file as a string."""
     if os.path.isfile(filename):
         with open(filename, 'r') as handle:
-            return [ x.rstrip() for x in handle ]
+            return ''.join( handle.readlines() )
     else:
-        return None
+        return ''
 
 # ######################################################################
 # ###################################################### Tick Formatters
@@ -187,6 +185,8 @@ def tex(x):
     '\\usepackage{color}',
 
     """
+    # Escape percent symbols.
+    x = x.replace('%', '\\%')
     nomath = x.split('$')[::2]
     ret = [None]*( len( x.split('$') ) )
     ret[1::2] = x.split('$')[1::2]

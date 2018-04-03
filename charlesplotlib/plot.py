@@ -12,11 +12,7 @@ import sys
 
 from . import helpers
 
-
 # LaTeX fonts.
-
-
-
 
 matplotlib.rcParams['text.usetex'] = True
 matplotlib.rcParams['font.family'] = 'sans-serif'
@@ -53,64 +49,52 @@ class Plot(object):
 
     nticks = 5
 
-
     clabels, rlabels = None, None
 
     _colorbar = True
 
+    # ------------------------------------------------------------------
+
     def __init__(self, rows=1, cols=1):
         self.cmap = helpers.seq_cmap()
-
         self._rows, self._cols = rows, cols
-
         self.subplots = np.empty( [rows, cols], dtype=object )
-
         for i in range(rows):
             for j in range(cols):
                 self.subplots[i, j] = Subplot()
-
         return
 
 
-
+    # ------------------------------------------------------------------
     def __getitem__(self, key):
         if isinstance(key, int):
             return self.subplots.flatten()[key]
         else:
             return self.subplots[key]
 
+    # ------------------------------------------------------------------
 
     def getnorm(self):
-
         if not any( x.meshes for x in self.subplots.flatten() ):
             self._colorbar = False
             return None
-
         self._colorbar = True
-
         z0, z1 = self.zticks[0], self.zticks[-1]
         dz = (z1 - z0)/(self.ncolors - 1.)
         zlevels = np.linspace(z0 - dz/2, z1 + dz/2, self.ncolors + 1)
-
         return BoundaryNorm(zlevels, self.cmap.N)
 
+    # ------------------------------------------------------------------
 
     def draw(self, filename=None):
-
         global _labels
-
         norm = self.getnorm()
-
-
         # If we have labels, make room for a color bar.
         if not self._colorbar:
             self._colorbar = _labels
-
         axdict = getaxes(rows=self._rows, cols=self._cols, colorbar=self._colorbar)
         self.__dict__.update(axdict)
-
         if norm:
-
             ColorbarBase(
                 self.bax,
                 cmap=self.cmap,
@@ -119,72 +103,48 @@ class Plot(object):
                 orientation='horizontal',
             )
             self.bax.xaxis.tick_top()
-
             if self.zticklabels:
                 self.bax.set_xticklabels(self.zticklabels)
-
         kwargs = dict(
                 x=0.5,
                 y=0.5,
                 horizontalalignment='center',
                 verticalalignment='center',
         )
-
         if self.xticks:
             xlims = min(self.xticks), max(self.xticks)
             [ x.set_xticks(self.xticks) for x in self.dax.flatten() ]
             [ x.set_xlim(xlims) for x in self.dax.flatten() ]
-
         if self.title:
             self.tax.text(s=self.title, fontsize=24, **kwargs)
-
         if self.xlabel:
             self.xax.text(s=self.xlabel, fontsize=18, **kwargs)
-
         if self.ylabel:
             self.yax.text(s=self.ylabel, fontsize=18, rotation=90, **kwargs)
-
         if self.clabels:
             [ x.text(s=y, fontsize=16, **kwargs) for x, y in zip(self.cax, self.clabels) ]
-
         if self.rlabels:
             [ x.text(s=y, fontsize=16, **kwargs) for x, y in zip(self.rax, self.rlabels) ]
-
         if self.xlims:
             [ x.set_xlim(self.xlims) for x in self.dax.flatten() ]
-
         if self.xticks:
             [ x.set_xticks(self.xticks) for x in self.dax.flatten() ]
-
         if self.ylims:
             [ x.set_ylim(self.ylims) for x in self.dax.flatten() ]
-
         if self.yticks:
             [ x.set_yticks(self.yticks) for x in self.dax.flatten() ]
-
-
-
-
         if self.xticklabels:
             [ x.set_xticklabels(self.xticklabels) for x in self.dax[-1, :] ]
-
         if self.yticklabels:
             [ x.set_yticklabels(self.yticklabels) for x in self.dax[:, 0] ]
-
-
         handles, labels = [], []
-
         for sp, ax in zip( self.subplots.flatten(), self.dax.flatten() ):
             kwargs = {'cmap':self.cmap, 'norm':norm, 'ax':ax}
             sp.draw(**kwargs)
-
             for handle, label in zip( *ax.get_legend_handles_labels() ):
                 if label not in labels:
                     handles.append(handle), labels.append(label)
-
-
         if _labels:
-
 #            for color, label in _labels.items():
             plt.legend(
                 handles,
@@ -198,12 +158,6 @@ class Plot(object):
                 frameon=False,
                 handletextpad=-0.1,
             )
-
-
-
-
-
-
         if '--save' in sys.argv and filename is not None:
             plotspath = '/home/charles/Desktop/plots/'
             timestamp = dt.datetime.now().strftime('%Y%m%d%H%M%S')

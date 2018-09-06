@@ -32,7 +32,7 @@ def main():
 
 
 
-    return valakut()
+#    return valakut()
 
 
 

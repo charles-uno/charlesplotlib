@@ -23,7 +23,144 @@ import charlesplotlib as cpl
 
 # ######################################################################
 
+def defaultdictdict(t):
+    return collections.defaultdict(lambda: collections.defaultdict(t))
+
+# ----------------------------------------------------------------------
+
+def load_data():
+    data = defaultdictdict(int)
+
+    for chamber in ('house', 'senate'):
+        for metric in ('votes', 'seats'):
+            tally_key = chamber + '_' + metric
+
+            for party in ('dem', 'gop'):
+                key = chamber + '_' + metric + '_' + party
+                for line in read_lines('votes_seats/%s.txt' % key):
+
+                    try:
+                        year, val = [ int(x) for x in line.split() ]
+                    except ValueError:
+                        continue
+
+                    data[year][key] = val
+                    data[year][tally_key] += val
+
+    return data
+
+# ----------------------------------------------------------------------
+
+def read_lines(path):
+    with open(path, 'r') as handle:
+        return [ x.rstrip() for x in handle ]
+
+# ======================================================================
+
 def main():
+
+    data = load_data()
+
+
+
+    with open('votes_seats/senate.txt', 'w') as handle:
+
+        handle.write( '\t'.join( ('year', 'ssd', 'ssr', 'svd', 'svr') ) + '\n')
+
+        for year, year_data in sorted(data.items(), reverse=True):
+
+            handle.write( '\t'.join( str(x) for x in (year, year_data['senate_seats_dem'], year_data['senate_seats_gop'], year_data['senate_votes_dem'], year_data['senate_votes_gop']) ) + '\n')
+
+    return
+
+
+
+
+
+
+
+#    [ print(k, ':', v) for k, v in sorted( data.items() ) ]
+
+    years = []
+    house_vote_shares, house_seat_shares = [], []
+    senate_vote_shares, senate_seat_shares = [], []
+
+    senate_vote_top, senate_vote_bot = [], []
+
+    for year, year_data in sorted( data.items() ):
+        years.append(year)
+        house_vote_shares.append(
+            year_data['house_votes_gop']/year_data['house_votes']
+        )
+        house_seat_shares.append(
+            year_data['house_seats_gop']/year_data['house_seats']
+        )
+
+        if year_data['senate_seats']:
+            senate_seat_shares.append(
+                year_data['senate_seats_gop']/year_data['senate_seats']
+            )
+        else:
+            senate_seat_shares.append(0)
+
+        senate_vote_top.append( year_data['senate_votes_gop'] )
+        senate_vote_bot.append( year_data['senate_votes'] )
+
+    # Senate terms are six years, so the 2017 senate is from the 2012, 2014, and 2016 elections.
+
+    while len(senate_vote_top) > 2:
+
+        vote_top = sum(senate_vote_top[:3])
+        vote_bot = sum(senate_vote_bot[:3])
+
+        senate_vote_top.pop(0)
+        senate_vote_bot.pop(0)
+
+        if vote_bot:
+            senate_vote_shares.append(vote_top/vote_bot)
+        else:
+            senate_vote_shares.append(0)
+
+
+
+
+
+
+
+
+
+    plot = cpl.Plot(rows=1, cols=2)
+    plot.title = 'GOP Vote and Seat Shares'
+
+    plot.clabels = 'House', 'Senate'
+
+    plot.xlabel = 'Year'
+    plot.ylabel = 'Share'
+
+    plot.ylims = 0.3, 0.7
+    plot.yticks = 0.3, 0.4, 0.5, 0.6, 0.7
+    plot.yticklabels = '30\%', '40\%', '50\%', '60\%', '70\%'
+
+    plot.xlims = 1938, 2016
+#    plot.xticks = 1984, 1992, 2000, 2008, 2016
+
+
+    plot[0].line(years, house_vote_shares, label='GOP Votes')
+    plot[0].line(years, house_seat_shares, label='GOP Seats')
+    plot[0].line([0, 3000], [0.5, 0.5], color='k', ls=':')
+
+    plot[1].line(years[2:], senate_vote_shares, label='GOP Votes')
+    plot[1].line(years, senate_seat_shares, label='GOP Seats')
+    plot[1].line([0, 3000], [0.5, 0.5], color='k', ls=':')
+
+
+    return plot.draw('votes_seats.png')
+
+
+
+
+
+
     rows, cols = 1, 3
 
     landmin, landmax = 11, 19
@@ -69,39 +206,6 @@ def main():
     return plot.draw('curve.png')
 
 # ######################################################################
-
-def curve(hit, miss, nlands, ncyclers=0, draw=False):
-    # What are the odds of hitting your lands on curve for this many
-    # turns on the play?
-    decksize = 40 - ncyclers
-    decklands = nlands
-    handsize = (7 if draw else 6) + hit
-    tally = 1
-    for handlands in range(hit):
-        tally -= _curve(decksize, decklands, handsize, handlands)
-    # Missing your first or second land drop is mutually exclusive with
-    # flooding on turn 7, since you only draw 1 land per turn.
-    handsize = (7 if draw else 6) + miss
-    for handlands in range(miss, handsize + 1):
-        tally -= _curve(decksize, decklands, handsize, handlands)
-    return tally
-
-# ----------------------------------------------------------------------
-
-def _curve(decksize, decklands, handsize, handlands):
-    # Deck size DS, deck lands DL, hand size HS. Return the odds of
-    # having exactly HL lands in hand.
-    ztotal = choose(decksize, handsize)
-    zlands = choose(decksize - decklands, handsize - handlands)
-    zspells = choose(decklands, handlands)
-    return zlands*zspells/ztotal
-
-# ----------------------------------------------------------------------
-
-def choose(n, k):
-    if not 0 <= k <= n:
-        return 0
-    return math.factorial(n)/( math.factorial(n-k)*math.factorial(k) )
 
 # ######################################################################
 

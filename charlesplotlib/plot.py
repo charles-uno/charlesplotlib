@@ -10,6 +10,8 @@ from matplotlib import patches
 import numpy as np
 import sys
 
+import seaborn as sns
+
 from . import helpers
 
 # LaTeX fonts.
@@ -43,6 +45,8 @@ class Plot(object):
 
     xticklabels, yticklabels = None, None
 
+    xtickrotation, ytickrotation = 0, 0
+
     xlims, ylims, zlims = None, None, None
 
     ncolors = 13
@@ -65,7 +69,13 @@ class Plot(object):
         return
 
 
+    def dots(self, *args, **kwargs):
+        return [ x.dots(*args, **kwargs) for x in self.subplots.flatten() ]
+
+
+
     # ------------------------------------------------------------------
+
     def __getitem__(self, key):
         if isinstance(key, int):
             return self.subplots.flatten()[key]
@@ -134,7 +144,9 @@ class Plot(object):
         if self.yticks:
             [ x.set_yticks(self.yticks) for x in self.dax.flatten() ]
         if self.xticklabels:
-            [ x.set_xticklabels(self.xticklabels) for x in self.dax[-1, :] ]
+            for ax in self.dax[-1, :]:
+                ax.set_xticklabels(self.xticklabels, rotation=self.xtickrotation)
+
         if self.yticklabels:
             [ x.set_yticklabels(self.yticklabels) for x in self.dax[:, 0] ]
         handles, labels = [], []
@@ -289,7 +301,7 @@ class Subplot(object):
     # ------------------------------------------------------------------
 
     def __init__(self):
-        self.meshes, self.lines, self.texts = [], [], []
+        self.bars, self.meshes, self.lines, self.texts = [], [], [], []
         return
 
     # ------------------------------------------------------------------
@@ -304,6 +316,14 @@ class Subplot(object):
         if 'label' in kwargs:
             _labels = True
         return self.lines.append( (args, kwargs) )
+
+    # ------------------------------------------------------------------
+
+    def bar(self, *args, **kwargs):
+        global _labels
+        if 'label' in kwargs:
+            _labels = True
+        return self.bars.append( (args, kwargs) )
 
     # ------------------------------------------------------------------
 
@@ -349,4 +369,11 @@ class Subplot(object):
             )
         [ kwargs['ax'].plot(*a, **k) for a, k in self.lines ]
         [ kwargs['ax'].text(*a, **k) for a, k in self.texts ]
+        [ kwargs['ax'].bar(*a, **k) for a, k in self.bars ]
+
+
+
+
+
+
         return

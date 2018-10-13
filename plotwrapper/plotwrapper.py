@@ -22,7 +22,7 @@ class Plot(object):
     # ------------------------------------------------------------------
 
     def __init__(self, rows=1, cols=1, **kwargs):
-        figsize=(cols*4, rows*4)
+        figsize=(cols*5, rows*5)
 
         self.fig, axes = plt.subplots(rows, cols, figsize=figsize)
 

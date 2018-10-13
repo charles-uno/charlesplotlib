@@ -1,0 +1,52 @@
+Alabama	66.6
+Alaska	63.0
+Arizona	56.9
+Arkansas	73.9
+California	39.2
+Colorado	69.4
+Connecticut	70.0
+Delaware	64.3
+Florida	56.8
+Georgia	55.0
+Hawaii	22.8
+Idaho	83.4
+Illinois	62.9
+Indiana	80.9
+Iowa	88.0
+Kansas	77.4
+Kentucky	85.8
+Louisiana	59.7
+Maine	94.1
+Maryland	53.8
+Massachusetts	75.3
+Michigan	79.3
+Minnesota	82.3
+Mississippi	57.5
+Missouri	80.5
+Montana	87.2
+Nebraska	81.3
+Nevada	52.7
+New Hampshire	91.8
+New Jersey	57.9
+New Mexico	39.7
+New York	57.4
+North Carolina	64.5
+North Dakota	88.1
+Ohio	80.6
+Oklahoma	67.8
+Oregon	77.6
+Pennsylvania	78.6
+Puerto Rico	0.6
+Rhode Island	75.4
+South Carolina	63.9
+South Dakota	83.8
+Tennessee	75.0
+Texas	44.3
+Utah	79.8
+Vermont	94.0
+Virginia	63.9
+Washington	71.4
+Washington D.C.	35.3
+West Virginia	92.8
+Wisconsin	82.8
+Wyoming	84.6

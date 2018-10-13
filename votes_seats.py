@@ -48,13 +48,44 @@ def make_step(years, seats):
         s.append(seat), s.append(seat)
     return np.array(y), np.array(s)
 
+# ======================================================================
 
-
-
-
+def state_name(line):
+    words = line.split()
+    if words[0] == words[1] or not words[1][0].isalpha():
+        return words[0]
+    else:
+        return words[0] + ' ' + words[1]
 
 
 def main():
+
+    with open('votes_seats/raw_white_pop.txt', 'r') as handle:
+        vals = [ x.rstrip().replace(',', '').split('\t') for x in handle ]
+
+    lines = []
+
+    for val in vals:
+
+        name = state_name(val[0])
+
+        if len(val) < 8 or not val[8].strip():
+            print('skipping:', name)
+            continue
+
+        pct = float( val[8].rstrip('%') )
+        lines.append(name + '\t' + str(pct))
+
+        print(pct, '\t', name)
+
+    with open('votes_seats/pct_white.txt', 'w') as handle:
+        [ handle.write(x + '\n') for x in sorted(lines) ]
+
+
+    return
+
+
+
 
 
     house = read_array('votes_seats/house.txt')
@@ -101,11 +132,12 @@ def main():
     ss_gop = senate[:, 2][:-2]
     ss_tot = ss_dem + ss_gop
 
-    plot = plotwrapper.Plot(rows=1, cols=2)
-    plot.title('GOP Vote Share (red) and Resulting Seat Share (white)')
+    collabels = 'House', 'Senate' #, 'Electoral College'
 
-    plot.collabels('House', 'Senate')
-#    plot.collabels('House', 'Senate', 'Electoral College')
+    plot = plotwrapper.Plot(rows=1, cols=len(collabels))
+    plot.title('GOP Vote Share (Red) and Resulting Seat Share (White)')
+
+    plot.collabels(*collabels)
 
     plot.ylims( [0.3, 0.7] )
     yticks = [0.3, 0.4, 0.5, 0.6, 0.7]
@@ -123,165 +155,46 @@ def main():
     gop_color = 'C3'
     dem_color='C0'
 
-    plot[0].bar(hy, hv_gop/hv_tot, label='GOP Votes', width=2, align='edge', color=gop_color)
-    plot[0].bar(hy, -hv_dem/hv_tot, label='Dem Votes', width=2, align='edge', color=dem_color, bottom=1)
-    plot[0].line(*make_step(hy, hs_gop/hs_tot), label='Seats', color='white')
+    years = [hy, sy, ey]
+    votes = [hv_gop/hv_tot, sv_gop/sv_tot, ev_gop/ev_tot]
+    seats = [hs_gop/hs_tot, ss_gop/ss_tot, es_gop/es_tot]
 
-    plot[1].bar(sy, sv_gop/sv_tot, label='GOP Votes', width=2, align='edge', color=gop_color)
-    plot[1].bar(sy, -sv_dem/sv_tot, label='Dem Votes', width=2, align='edge', color=dem_color, bottom=1)
-    plot[1].line(*make_step(sy, ss_gop/ss_tot), label='Seats', color='white')
 
-#    plot[2].bar(ey, ev_gop/ev_tot, label='GOP Votes', width=4, align='edge', color=gop_color)
-#    plot[2].bar(ey, -ev_dem/ev_tot, label='Dem Votes', width=4, align='edge', color=dem_color, bottom=1)
-#    plot[2].line(*make_step(ey, es_gop/es_tot), label='Seats', color='white')
 
-    plot[0].line([1776, 2024], [0.5, 0.5], color='k', ls=':')
-    plot[1].line([1776, 2024], [0.5, 0.5], color='k', ls=':')
-#    plot[2].line([1776, 2024], [0.5, 0.5], color='k', ls=':')
+    for i, (y, v, s) in enumerate( zip(years, votes, seats) ):
 
-    return plot.draw('votes_seats.png')
+        if i == 1:
+
+            for year, vote, seat in zip(y, v, s):
+                print(year, ':', '%.1f' % (100*vote), '', '%.1f' % (100*seat))
+            return
 
 
 
 
+        if i == len(collabels):
+            break
+
+#        plot[i].bar(y, v, label='GOP Votes', width=2, align='edge', color=gop_color)
+#        plot[i].bar(y, v - 1, label='Dem Votes', width=2, align='edge', color=dem_color, bottom=1)
+#        plot[i].line(*make_step(y, s), label='Seats', color='white')
+
+
+        plot[i].line(*make_step(y, v), label='Votes', color='red')
+        plot[i].line(*make_step(y, s), label='Seats', color='black')
 
 
 
+#        _y, _v = make_step(y, v)
+#        _y, _s = make_step(y, s)
+#        plot[i].line(_y, _v, label='Votes', color='red')
+#        plot[i].line(_y, _s, label='Seats', color='black')
+#        plot[i].fill_between(_y, _v, _s, where=_v>_s, facecolor='green', interpolate=True)
 
-
-
-
-
-
-
-
-#    [ print(k, ':', v) for k, v in sorted( data.items() ) ]
-
-    years = []
-    house_vote_shares, house_seat_shares = [], []
-    senate_vote_shares, senate_seat_shares = [], []
-
-    senate_vote_top, senate_vote_bot = [], []
-
-    for year, year_data in sorted( data.items() ):
-        years.append(year)
-        house_vote_shares.append(
-            year_data['house_votes_gop']/year_data['house_votes']
-        )
-        house_seat_shares.append(
-            year_data['house_seats_gop']/year_data['house_seats']
-        )
-
-        if year_data['senate_seats']:
-            senate_seat_shares.append(
-                year_data['senate_seats_gop']/year_data['senate_seats']
-            )
-        else:
-            senate_seat_shares.append(0)
-
-        senate_vote_top.append( year_data['senate_votes_gop'] )
-        senate_vote_bot.append( year_data['senate_votes'] )
-
-    # Senate terms are six years, so the 2017 senate is from the 2012, 2014, and 2016 elections.
-
-    while len(senate_vote_top) > 2:
-
-        vote_top = sum(senate_vote_top[:3])
-        vote_bot = sum(senate_vote_bot[:3])
-
-        senate_vote_top.pop(0)
-        senate_vote_bot.pop(0)
-
-        if vote_bot:
-            senate_vote_shares.append(vote_top/vote_bot)
-        else:
-            senate_vote_shares.append(0)
-
-
-
-
-
-
-
-
-
-    plot = cpl.Plot(rows=1, cols=2)
-    plot.title = 'GOP Vote and Seat Shares'
-
-    plot.clabels = 'House', 'Senate'
-
-    plot.xlabel = 'Year'
-    plot.ylabel = 'Share'
-
-    plot.ylims = 0.3, 0.7
-    plot.yticks = 0.3, 0.4, 0.5, 0.6, 0.7
-    plot.yticklabels = '30\%', '40\%', '50\%', '60\%', '70\%'
-
-    plot.xlims = 1938, 2016
-#    plot.xticks = 1984, 1992, 2000, 2008, 2016
-
-
-    plot[0].line(years, house_vote_shares, label='GOP Votes')
-    plot[0].line(years, house_seat_shares, label='GOP Seats')
-    plot[0].line([0, 3000], [0.5, 0.5], color='k', ls=':')
-
-    plot[1].line(years[2:], senate_vote_shares, label='GOP Votes')
-    plot[1].line(years, senate_seat_shares, label='GOP Seats')
-    plot[1].line([0, 3000], [0.5, 0.5], color='k', ls=':')
-
+        plot[i].line([1776, 2024], [0.5, 0.5], color='k', ls=':')
 
     return plot.draw('votes_seats.png')
 
-
-
-
-
-
-    rows, cols = 1, 3
-
-    landmin, landmax = 11, 19
-    cyclemin, cyclemax = 0, 8
-
-    plot = cpl.Plot(rows=rows, cols=cols)
-    plot.title = 'Effects of Land Count and Cycling on Mana Curve Reliability'
-    plot.xlabel = 'Number of Lands'
-
-    plot.xlims = landmin - 0.5, landmax + 0.5
-    plot.ylims = cyclemin - 0.5, cyclemax + 0.5
-
-    plot.xticks = range(landmin, landmax + 1, 2)
-    plot.yticks = range(cyclemin, cyclemax + 1, 2)
-    plot.zticks = 10, 30, 50, 70, 90
-
-    plot.zticklabels = [ str(x) + '\%' for x in plot.zticks ]
-
-    plot.ncolors = 29
-
-    plot.ylabel = 'Number of Cards with Cycling'
-
-    plot.clabels = (
-        '$\\geq\\!3$ lands on turn 3 and $<\\!7$ lands on turn 7',
-        '$\\geq\\!4$ lands on turn 4 and $<\\!8$ lands on turn 8',
-        '$\\geq\\!5$ lands on turn 5 and $<\\!9$ lands on turn 9',
-    )
-
-    plot.rlabels = ('Play', 'Draw')
-
-    xvals = np.arange(landmin, landmax + 2)
-    yvals = np.arange(cyclemin, cyclemax + 2)
-    for col in range(cols):
-        zvals = np.random.rand(cyclemax - cyclemin + 1, landmax - landmin + 1)
-        for i, x in enumerate( xvals[:-1] ):
-            for j, y in enumerate( yvals[:-1] ):
-                zplay = curve(3 + col, 7 + col, x, ncyclers=y, draw=False)*100
-                zdraw = curve(3 + col, 7 + col, x, ncyclers=y, draw=True)*100
-                zvals[j, i] = 0.5*(zplay + zdraw)
-                if i%2 == 0 and j%2 == 0:
-                    plot[col].text(format(zvals[j, i], '.0f') + '\%', x=x, y=y, fontsize=16)
-            plot[col].mesh(xvals-0.5, yvals-0.5, zvals)
-    return plot.draw('curve.png')
-
-# ######################################################################
 
 # ######################################################################
 
